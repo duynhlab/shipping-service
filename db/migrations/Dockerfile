@@ -5,7 +5,7 @@ ENV FLYWAY_HOME=/opt/flyway/$FLYWAY_VERSION  \
     FLYWAY_PKGS="https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}.tar.gz"
 
 # Dùng openjdk17 thay vì openjdk8
-RUN apk add --update \
+RUN apk upgrade --no-cache && apk add --update \
     openjdk17-jre \
     wget \
     bash \

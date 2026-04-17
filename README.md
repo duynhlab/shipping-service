@@ -10,11 +10,13 @@ Shipping microservice for tracking and cost estimation.
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/shipping/track` | Track shipment |
-| `GET` | `/api/v1/shipping/estimate` | Estimate cost |
-| `GET` | `/api/v1/shipping/orders/:id` | Get by order ID |
+> **Browser callers** hit `https://gateway.duynhne.me/shipping/v1/public/{track,estimate}`; Kong rewrites to the cluster paths below. `GET /api/v1/shipping/orders/:id` stays internal — called only by `order-service` for aggregation. See [homelab naming convention](https://github.com/duynhlab/homelab/blob/main/docs/api/api-naming-convention.md).
+
+| Method | Cluster path | Edge path (via gateway) |
+|--------|--------------|-------------------------|
+| `GET` | `/api/v1/shipping/track` | `/shipping/v1/public/track` |
+| `GET` | `/api/v1/shipping/estimate` | `/shipping/v1/public/estimate` |
+| `GET` | `/api/v1/shipping/orders/:id` | *(internal — not on gateway)* |
 
 ## Tech Stack
 

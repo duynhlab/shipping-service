@@ -138,8 +138,22 @@ go build ./... && go test ./... && golangci-lint run --timeout=10m
 
 ## 🔌 API Reference
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/shipping/track` | Track shipment (query: `tracking_number`) |
-| `GET` | `/api/v1/shipping/estimate` | Estimate shipping cost |
-| `GET` | `/api/v1/shipping/orders/:orderId` | Get shipment by order ID |
+### Cluster paths (what this service mounts)
+
+| Method | Cluster path | Audience | Description |
+|--------|--------------|----------|-------------|
+| `GET` | `/api/v1/shipping/track` | public | Track shipment (query: `tracking_number`) |
+| `GET` | `/api/v1/shipping/estimate` | public | Estimate shipping cost |
+| `GET` | `/api/v1/shipping/orders/:orderId` | internal | Get shipment by order ID — called by `order-service`, **not on gateway** |
+
+### Edge paths (what the browser sends)
+
+Kong in the `shipping` namespace rewrites `/shipping/v1/public/{verb}` → `/api/v1/shipping/{verb}`. The internal `orders/:orderId` route stays off the gateway; `order-service` calls it via `http://shipping.shipping.svc.cluster.local:8080/api/v1/shipping/orders/:orderId`.
+
+| Edge path (browser) | → Cluster path |
+|---------------------|----------------|
+| `GET gateway.duynhne.me/shipping/v1/public/track?tracking_number=…` | `GET /api/v1/shipping/track` |
+| `GET gateway.duynhne.me/shipping/v1/public/estimate?…` | `GET /api/v1/shipping/estimate` |
+| *(no edge path)* | `GET /api/v1/shipping/orders/:orderId` — internal only |
+
+Convention + rewrite rule: [`homelab/docs/api/api-naming-convention.md`](https://github.com/duynhlab/homelab/blob/main/docs/api/api-naming-convention.md).

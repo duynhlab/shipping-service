@@ -27,6 +27,9 @@ func (r *ShipmentRepository) GetByTrackingNumber(ctx context.Context, trackingNu
 		LIMIT 1
 	`
 
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	row := r.db.QueryRow(ctx, query, trackingNumber)
 	shipment, err := r.scanShipment(row)
 	if err != nil {
@@ -47,6 +50,9 @@ func (r *ShipmentRepository) GetByOrderID(ctx context.Context, orderID string) (
 		LIMIT 1
 	`
 
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	row := r.db.QueryRow(ctx, query, orderID)
 	shipment, err := r.scanShipment(row)
 	if err != nil {
@@ -61,7 +67,8 @@ func (r *ShipmentRepository) GetByOrderID(ctx context.Context, orderID string) (
 
 func (r *ShipmentRepository) scanShipment(row pgx.Row) (*domain.Shipment, error) {
 	var id, orderID int
-	var trackingNum, carrier, status string
+	var trackingNum, status string
+	var carrier *string
 	var estimatedDelivery *time.Time
 	var createdAt, updatedAt time.Time
 
@@ -81,8 +88,10 @@ func (r *ShipmentRepository) scanShipment(row pgx.Row) (*domain.Shipment, error)
 		UpdatedAt:      updatedAt.Format(time.RFC3339),
 	}
 
-	if carrier != "" {
-		shipment.Carrier = carrier
+	if carrier == nil {
+		shipment.Carrier = ""
+	} else {
+		shipment.Carrier = *carrier
 	}
 
 	if estimatedDelivery != nil {

@@ -58,7 +58,7 @@ func main() {
 	shippingHandler := webv1.NewHandler(shippingService)
 
 	var isShuttingDown atomic.Bool
-	srv := setupServer(cfg, logger, &isShuttingDown, shippingHandler)
+	srv := setupServer(cfg, logger, &isShuttingDown, shippingHandler, pool)
 	runGracefulShutdown(cfg, srv, tp, pool, logger, &isShuttingDown)
 }
 
@@ -91,7 +91,9 @@ func initProfiling(cfg *config.Config, logger *zap.Logger) {
 	logger.Info("Profiling initialized", zap.String("endpoint", cfg.Profiling.Endpoint))
 }
 
-func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.Bool, handler *webv1.Handler) *http.Server {
+func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.Bool, handler *webv1.Handler, pool interface {
+	Ping(context.Context) error
+}) *http.Server {
 	r := gin.Default()
 
 	r.Use(middleware.TracingMiddleware())
@@ -104,6 +106,12 @@ func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.
 	r.GET("/ready", func(c *gin.Context) {
 		if isShuttingDown.Load() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "shutting_down"})
+			return
+		}
+		pingCtx, cancel := context.WithTimeout(c.Request.Context(), 1*time.Second)
+		defer cancel()
+		if err := pool.Ping(pingCtx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "db_unavailable"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

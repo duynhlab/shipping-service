@@ -2,6 +2,7 @@ package v1
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -39,6 +40,11 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 		trackingID = c.Query("trackingId") // Backward compatibility
 	}
 	span.SetAttributes(attribute.String("tracking.id", trackingID))
+
+	if trackingID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameter: tracking_number"})
+		return
+	}
 
 	shipment, err := h.service.TrackShipment(ctx, trackingID)
 	if err != nil {
@@ -86,8 +92,8 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 
 	// Parse weight
 	weight, err := strconv.ParseFloat(weightStr, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid weight value"})
+	if err != nil || weight <= 0 || math.IsNaN(weight) || math.IsInf(weight, 0) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "weight must be a positive number"})
 		return
 	}
 

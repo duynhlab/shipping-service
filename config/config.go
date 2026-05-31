@@ -50,11 +50,11 @@ type Config struct {
 	ReadinessDrainDelay int
 }
 
-// GRPCConfig defines the optional internal gRPC server (east-west only).
-// Disabled by default; HTTP :8080 is unaffected when this is off.
+// GRPCConfig defines the internal gRPC server (east-west only). gRPC is the
+// official east-west transport, so the server always runs; only the port is
+// configurable. HTTP :8080 is unaffected.
 type GRPCConfig struct {
-	Enabled bool   // GRPC_ENABLED (default false)
-	Port    string // GRPC_PORT (default "9090")
+	Port string // GRPC_PORT (default "9090")
 }
 
 // ServiceConfig defines basic service configuration
@@ -134,8 +134,7 @@ func Load() *Config {
 			Env:     getEnv("ENV", "development"),
 		},
 		GRPC: GRPCConfig{
-			Enabled: getEnvBool("GRPC_ENABLED", false),
-			Port:    getEnv("GRPC_PORT", "9090"),
+			Port: getEnv("GRPC_PORT", "9090"),
 		},
 		Tracing: TracingConfig{
 			Enabled:            getEnvBool("TRACING_ENABLED", true),

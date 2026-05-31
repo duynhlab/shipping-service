@@ -70,16 +70,12 @@ func main() {
 	runGracefulShutdown(cfg, srv, grpcSrv, tp, pool, logger, &isShuttingDown)
 }
 
-// startGRPC starts the internal gRPC server on cfg.GRPC.Port when enabled,
-// serving ShippingService alongside the HTTP listener (dual-port). Returns nil
-// when disabled. The server uses the shared grpcx bootstrap (OpenTelemetry,
-// health, reflection).
+// startGRPC starts the internal gRPC server on cfg.GRPC.Port, serving
+// ShippingService alongside the HTTP listener (dual-port). gRPC is the official
+// east-west transport, so it always runs; it returns nil only if the listener
+// can't bind. The server uses the shared grpcx bootstrap (OpenTelemetry, health,
+// reflection).
 func startGRPC(cfg *config.Config, logger *zap.Logger, svc *logicv1.ShippingService) *grpc.Server {
-	if !cfg.GRPC.Enabled {
-		logger.Info("gRPC server disabled (GRPC_ENABLED=false)")
-		return nil
-	}
-
 	lc := net.ListenConfig{}
 	lis, err := lc.Listen(context.Background(), "tcp", ":"+cfg.GRPC.Port)
 	if err != nil {

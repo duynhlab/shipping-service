@@ -15,9 +15,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ShipmentService is the logic-layer dependency the gRPC server needs.
+// ShipmentGetter is the logic-layer dependency the gRPC server needs.
 // *logicv1.ShippingService satisfies it.
-type ShipmentService interface {
+type ShipmentGetter interface {
 	GetShipmentByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error)
 }
 
@@ -25,11 +25,11 @@ type ShipmentService interface {
 type Server struct {
 	shippingv1.UnimplementedShippingServiceServer
 
-	svc ShipmentService
+	svc ShipmentGetter
 }
 
 // NewServer creates a gRPC ShippingService server backed by the logic service.
-func NewServer(svc ShipmentService) *Server {
+func NewServer(svc ShipmentGetter) *Server {
 	return &Server{svc: svc}
 }
 

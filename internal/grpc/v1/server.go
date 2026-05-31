@@ -8,9 +8,9 @@ import (
 	"errors"
 	"strconv"
 
-	shippingv1 "github.com/duynhne/pkg/proto/shipping/v1"
-	"github.com/duynhne/shipping-service/internal/core/domain"
-	logicv1 "github.com/duynhne/shipping-service/internal/logic/v1"
+	shippingv1 "github.com/duynhlab/pkg/proto/shipping/v1"
+	"github.com/duynhlab/shipping-service/internal/core/domain"
+	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/duynhne/shipping-service/internal/core/domain"
+	"github.com/duynhlab/shipping-service/internal/core/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

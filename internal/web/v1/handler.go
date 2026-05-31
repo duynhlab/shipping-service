@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
-	logicv1 "github.com/duynhne/shipping-service/internal/logic/v1"
-	"github.com/duynhne/shipping-service/middleware"
+	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
+	"github.com/duynhlab/shipping-service/middleware"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"

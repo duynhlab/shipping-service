@@ -15,15 +15,15 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
-	"github.com/duynhne/pkg/grpcx"
-	shippingv1 "github.com/duynhne/pkg/proto/shipping/v1"
-	"github.com/duynhne/shipping-service/config"
-	database "github.com/duynhne/shipping-service/internal/core"
-	"github.com/duynhne/shipping-service/internal/core/repository/postgres"
-	grpcv1 "github.com/duynhne/shipping-service/internal/grpc/v1"
-	logicv1 "github.com/duynhne/shipping-service/internal/logic/v1"
-	webv1 "github.com/duynhne/shipping-service/internal/web/v1"
-	"github.com/duynhne/shipping-service/middleware"
+	"github.com/duynhlab/pkg/grpcx"
+	shippingv1 "github.com/duynhlab/pkg/proto/shipping/v1"
+	"github.com/duynhlab/shipping-service/config"
+	database "github.com/duynhlab/shipping-service/internal/core"
+	"github.com/duynhlab/shipping-service/internal/core/repository/postgres"
+	grpcv1 "github.com/duynhlab/shipping-service/internal/grpc/v1"
+	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
+	webv1 "github.com/duynhlab/shipping-service/internal/web/v1"
+	"github.com/duynhlab/shipping-service/middleware"
 )
 
 func main() {

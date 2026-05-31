@@ -24,6 +24,7 @@ type ShipmentService interface {
 // Server implements shippingv1.ShippingServiceServer.
 type Server struct {
 	shippingv1.UnimplementedShippingServiceServer
+
 	svc ShipmentService
 }
 

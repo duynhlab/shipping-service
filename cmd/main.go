@@ -80,7 +80,8 @@ func startGRPC(cfg *config.Config, logger *zap.Logger, svc *logicv1.ShippingServ
 		return nil
 	}
 
-	lis, err := net.Listen("tcp", ":"+cfg.GRPC.Port)
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(context.Background(), "tcp", ":"+cfg.GRPC.Port)
 	if err != nil {
 		logger.Error("Failed to listen for gRPC", zap.String("port", cfg.GRPC.Port), zap.Error(err))
 		return nil

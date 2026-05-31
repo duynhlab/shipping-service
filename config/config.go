@@ -37,6 +37,7 @@ const defaultServiceName = "unknown"
 // Config holds all configuration for a microservice
 type Config struct {
 	Service         ServiceConfig   // Service-specific settings (port, name, version)
+	GRPC            GRPCConfig      // Optional internal gRPC server (Phase 1 pilot)
 	Tracing         TracingConfig   // OpenTelemetry/Tempo configuration
 	Profiling       ProfilingConfig // Pyroscope continuous profiling
 	Logging         LoggingConfig   // Structured logging (Zap)
@@ -47,6 +48,13 @@ type Config struct {
 	// This gives Kubernetes/Service routing time to stop sending new traffic.
 	// From READINESS_DRAIN_DELAY env (default: 5s, max: 30s).
 	ReadinessDrainDelay int
+}
+
+// GRPCConfig defines the optional internal gRPC server (east-west only).
+// Disabled by default; HTTP :8080 is unaffected when this is off.
+type GRPCConfig struct {
+	Enabled bool   // GRPC_ENABLED (default false)
+	Port    string // GRPC_PORT (default "9090")
 }
 
 // ServiceConfig defines basic service configuration
@@ -125,6 +133,10 @@ func Load() *Config {
 			Version: getEnv("VERSION", "dev"),
 			Env:     getEnv("ENV", "development"),
 		},
+		GRPC: GRPCConfig{
+			Enabled: getEnvBool("GRPC_ENABLED", false),
+			Port:    getEnv("GRPC_PORT", "9090"),
+		},
 		Tracing: TracingConfig{
 			Enabled:            getEnvBool("TRACING_ENABLED", true),
 			Endpoint:           getEnv("OTEL_COLLECTOR_ENDPOINT", "otel-collector-opentelemetry-collector.monitoring.svc.cluster.local:4318"),
@@ -156,7 +168,7 @@ func Load() *Config {
 			PoolMode:       getEnv("DB_POOL_MODE", ""),
 			PoolerType:     getEnv("DB_POOLER_TYPE", ""),
 		},
-		ShutdownTimeout: getEnvDurationSeconds("SHUTDOWN_TIMEOUT", 10),
+		ShutdownTimeout:     getEnvDurationSeconds("SHUTDOWN_TIMEOUT", 10),
 		ReadinessDrainDelay: getEnvDurationSecondsWithMax("READINESS_DRAIN_DELAY", 5, 30),
 	}
 }
@@ -188,7 +200,7 @@ func (c *Config) validateService() []string {
 		errs = append(errs, "PORT is required (e.g., '8080')")
 	}
 	if _, err := strconv.Atoi(c.Service.Port); err != nil {
-		errs = append(errs, "PORT must be a valid number, got: " + c.Service.Port)
+		errs = append(errs, "PORT must be a valid number, got: "+c.Service.Port)
 	}
 	validEnvs := []string{"development", "dev", "staging", "stage", "production", "prod"}
 	if !contains(validEnvs, c.Service.Env) {
@@ -257,7 +269,7 @@ func (c *Config) validateDatabase() []string {
 	}
 	if c.Database.Port != "" {
 		if _, err := strconv.Atoi(c.Database.Port); err != nil {
-			errs = append(errs, "DB_PORT must be a valid number, got: " + c.Database.Port)
+			errs = append(errs, "DB_PORT must be a valid number, got: "+c.Database.Port)
 		}
 	}
 	return errs

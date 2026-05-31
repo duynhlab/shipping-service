@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"os/signal"
 	"sync/atomic"
@@ -12,10 +13,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
+	"github.com/duynhne/pkg/grpcx"
+	shippingv1 "github.com/duynhne/pkg/proto/shipping/v1"
 	"github.com/duynhne/shipping-service/config"
 	database "github.com/duynhne/shipping-service/internal/core"
 	"github.com/duynhne/shipping-service/internal/core/repository/postgres"
+	grpcv1 "github.com/duynhne/shipping-service/internal/grpc/v1"
 	logicv1 "github.com/duynhne/shipping-service/internal/logic/v1"
 	webv1 "github.com/duynhne/shipping-service/internal/web/v1"
 	"github.com/duynhne/shipping-service/middleware"
@@ -57,9 +62,42 @@ func main() {
 	shippingService := logicv1.NewShippingService(shippingRepo)
 	shippingHandler := webv1.NewHandler(shippingService)
 
+	// Optional internal gRPC server (Phase 1 pilot). HTTP :8080 is unaffected.
+	grpcSrv := startGRPC(cfg, logger, shippingService)
+
 	var isShuttingDown atomic.Bool
 	srv := setupServer(cfg, logger, &isShuttingDown, shippingHandler, pool)
-	runGracefulShutdown(cfg, srv, tp, pool, logger, &isShuttingDown)
+	runGracefulShutdown(cfg, srv, grpcSrv, tp, pool, logger, &isShuttingDown)
+}
+
+// startGRPC starts the internal gRPC server on cfg.GRPC.Port when enabled,
+// serving ShippingService alongside the HTTP listener (dual-port). Returns nil
+// when disabled. The server uses the shared grpcx bootstrap (OpenTelemetry,
+// health, reflection).
+func startGRPC(cfg *config.Config, logger *zap.Logger, svc *logicv1.ShippingService) *grpc.Server {
+	if !cfg.GRPC.Enabled {
+		logger.Info("gRPC server disabled (GRPC_ENABLED=false)")
+		return nil
+	}
+
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(context.Background(), "tcp", ":"+cfg.GRPC.Port)
+	if err != nil {
+		logger.Error("Failed to listen for gRPC", zap.String("port", cfg.GRPC.Port), zap.Error(err))
+		return nil
+	}
+
+	grpcSrv, _ := grpcx.NewServer()
+	shippingv1.RegisterShippingServiceServer(grpcSrv, grpcv1.NewServer(svc))
+
+	go func() {
+		logger.Info("Starting gRPC server", zap.String("port", cfg.GRPC.Port))
+		if err := grpcSrv.Serve(lis); err != nil {
+			logger.Error("gRPC server error", zap.Error(err))
+		}
+	}()
+
+	return grpcSrv
 }
 
 func initTracing(cfg *config.Config, logger *zap.Logger) interface{ Shutdown(context.Context) error } {
@@ -137,6 +175,7 @@ func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.
 func runGracefulShutdown(
 	cfg *config.Config,
 	srv *http.Server,
+	grpcSrv *grpc.Server,
 	tp interface{ Shutdown(context.Context) error },
 	pool interface{ Close() },
 	logger *zap.Logger,
@@ -172,6 +211,11 @@ func runGracefulShutdown(
 		logger.Error("HTTP server shutdown error", zap.Error(err))
 	} else {
 		logger.Info("HTTP server shutdown complete")
+	}
+
+	if grpcSrv != nil {
+		grpcSrv.GracefulStop()
+		logger.Info("gRPC server shutdown complete")
 	}
 
 	pool.Close()

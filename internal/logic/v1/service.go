@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/duynhne/shipping-service/internal/core/domain"
-	"github.com/duynhne/shipping-service/middleware"
+	"github.com/duynhlab/shipping-service/internal/core/domain"
+	"github.com/duynhlab/shipping-service/middleware"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )

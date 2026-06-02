@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/duynhlab/pkg/grpcx"
+	"github.com/duynhlab/pkg/obsx"
 	shippingv1 "github.com/duynhlab/pkg/proto/shipping/v1"
 	"github.com/duynhlab/shipping-service/config"
 	database "github.com/duynhlab/shipping-service/internal/core"
@@ -54,6 +55,22 @@ func main() {
 	logger.Info("Database connection pool established")
 
 	tp := initTracing(cfg, logger)
+
+	// obsx exposes otelgrpc RED metrics (rpc_server_*) on the existing /metrics
+	// handler via the global OTel MeterProvider. Must run before grpcx.NewServer.
+	if cfg.Metrics.Enabled {
+		shutdownMetrics, err := obsx.SetupMetrics()
+		if err != nil {
+			logger.Warn("Failed to initialize metrics", zap.Error(err))
+		} else {
+			logger.Info("Metrics initialized (otelgrpc RED metrics on /metrics)")
+			defer func() {
+				if err := shutdownMetrics(context.Background()); err != nil {
+					logger.Error("Metrics shutdown error", zap.Error(err))
+				}
+			}()
+		}
+	}
 
 	initProfiling(cfg, logger)
 

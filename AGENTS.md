@@ -1,187 +1,116 @@
-# shipping-service
+# shipping-service AGENTS guide
 
-> AI Agent context for understanding this repository
+Instructions for AI agents and human contributors working in this repository.
+Read it before making changes; keep edits surgical and consistent with what is
+already here.
 
-## 📋 Overview
+## Contribution workflow
 
-Shipping microservice. Manages shipment tracking, cost estimation, and delivery.
+- Never commit or push to `main`. Branch first, then open a PR.
+- Branch names use conventional prefixes: `feat/`, `fix/`, `docs/`, `chore/`,
+  `refactor/`, `test/`.
+- Commit subjects: imperative mood, capitalised, ≤ 50 characters, no trailing
+  period (`Add gRPC GetShipmentByOrder`, not `Added`/`Adds`). Add a body wrapped
+  at 72 characters only when the change is non-trivial.
+- Do not add attribution trailers (`Signed-off-by`, `Co-authored-by`,
+  `Generated-by`, etc.), GitHub issue references, or `@`-mentions in commit
+  messages. Put issue links in the PR description.
+- PRs are squash-merged. CI (`go-check`) runs build, test, and lint on every PR
+  and must be green before merge.
 
-Module path: `github.com/duynhlab/shipping-service`. It serves an HTTP API and a
-gRPC server (`shipping.v1.ShippingService`) consumed by `order-service`.
+## Code quality
 
-## 🏗️ Architecture Guidelines
+- Run `golangci-lint run` (v2+, `.golangci.yml`, 60+ linters) and fix every
+  finding before committing. Common fixes:
+  - `perfsprint`: prefer `errors.New` over `fmt.Errorf` when there are no verbs.
+  - `nosprintfhostport`: use `net.JoinHostPort` over `fmt.Sprintf("%s:%s", …)`.
+  - `errcheck`: check every error return, or explicitly `_ = fn()`.
+  - `noctx`: use the `*WithContext` request constructors.
+  - `goconst` / `gocognit`: extract repeated literals and split complex funcs.
+- Keep changes idiomatic: dependency injection via constructor parameters,
+  structured logging with `zap`, context propagation on all I/O.
+- Write tests for new logic (see `internal/logic/v1/service_test.go`).
 
-### 3-Layer Architecture
+## Project overview
 
-| Layer | Location | Responsibility |
-|-------|----------|----------------|
-| **Web** | `internal/web/v1/handler.go` | HTTP, validation |
-| **gRPC** | `internal/grpc/v1/server.go` | gRPC transport adapter (mirrors Web) |
-| **Logic** | `internal/logic/v1/service.go` | Business rules (❌ NO SQL) |
-| **Core** | `internal/core/` | Domain models, repository interface + Postgres impl |
+Shipping microservice for the `duynhlab` platform. Manages shipment tracking,
+cost estimation, and delivery lookup. Go module
+`github.com/duynhlab/shipping-service`. It serves an HTTP API on `:8080` and a
+gRPC server (`shipping.v1.ShippingService`) on `:9090` consumed by
+`order-service`.
 
-The gRPC server is a thin adapter over the **same** logic layer as the HTTP
-handlers, so both transports return identical data. It lives at the transport
-level (alongside Web) and must never embed business rules.
-
-### 3-Layer Coding Rules
-
-**CRITICAL**: Strict layer boundaries. Violations will be rejected in code review.
-
-#### Layer Boundaries
-
-| Layer | Location | ALLOWED | FORBIDDEN |
-|-------|----------|---------|-----------|
-| **Web** | `internal/web/v1/` | HTTP handling, JSON binding, DTO mapping, call Logic, aggregation | SQL queries, direct DB access, business rules |
-| **Logic** | `internal/logic/v1/` | Business rules, call repository interfaces, domain errors | SQL queries, `database.GetPool()`, HTTP handling, `*gin.Context` |
-| **Core** | `internal/core/` | Domain models, repository implementations, SQL queries, DB connection | HTTP handling, business orchestration |
-
-#### Dependency Direction
-
-```
-Web -> Logic -> Core (one-way only, never reverse)
-```
-
-- Web imports Logic and Core/domain
-- Logic imports Core/domain and Core/repository interfaces
-- Core imports nothing from Web or Logic
-
-#### DO
-
-- Put HTTP handlers, request validation, error-to-status mapping in `web/`
-- Put business rules, orchestration, transaction logic in `logic/`
-- Put SQL queries in `core/repository/` implementations
-- Use repository interfaces (defined in `core/domain/`) for data access in Logic layer
-- Use dependency injection (constructor parameters) for all service dependencies
-
-#### DO NOT
-
-- Write SQL or call `database.GetPool()` in Logic layer
-- Import `gin` or handle HTTP in Logic layer
-- Put business rules in Web layer (Web only translates and delegates)
-- Call Logic functions directly from another service (use HTTP aggregation in Web layer)
-- Skip the Logic layer (Web must not call Core/repository directly)
-
-### Directory Structure
+## Repository layout
 
 ```
 shipping-service/
-├── cmd/main.go              # Wires HTTP (:8080) + gRPC (:9090) servers
-├── config/config.go
-├── db/migrations/sql/
+├── cmd/main.go                       # Wires HTTP (:8080) + gRPC (:9090), graceful shutdown
+├── config/config.go                  # Env-driven configuration + validation
+├── db/migrations/                    # Flyway migrations (sql/) + init image Dockerfile + .trivyignore
 ├── internal/
+│   ├── web/v1/handler.go             # HTTP handlers, JSON binding, DTO mapping
+│   ├── logic/v1/                     # Business rules (service.go, errors.go, tests)
 │   ├── core/
-│   │   ├── database.go      # pgx/v5 pool (pooler-safe: simple protocol)
-│   │   ├── domain/          # Shipment model, repository interface, errors
-│   │   └── repository/postgres/  # ShipmentRepository impl (SQL)
-│   ├── logic/v1/service.go
-│   ├── grpc/v1/server.go    # shipping.v1.ShippingService server (adapter over logic)
-│   └── web/v1/handler.go
-├── middleware/              # tracing, logging, prometheus, profiling, resource
-└── Dockerfile
+│   │   ├── database.go               # pgx/v5 pool (pooler-safe: simple protocol)
+│   │   ├── domain/                   # Shipment model, repository interface, errors
+│   │   └── repository/postgres/      # ShipmentRepository SQL implementation
+│   └── grpc/v1/server.go             # shipping.v1.ShippingService server (adapter over logic)
+└── middleware/                       # tracing, logging, prometheus, profiling, resource
 ```
 
-## 🛠️ Development Workflow
-
-### Code Quality
-
-**MANDATORY**: All code changes MUST pass lint before committing.
-
-- Linter: `golangci-lint` v2+ with `.golangci.yml` config (60+ linters enabled)
-- Zero tolerance: PRs with lint errors will NOT be merged
-- CI enforces: `go-check` job runs lint on every PR
-
-#### Commands (run in order)
+## Build, test, lint
 
 ```bash
-go mod tidy              # Clean dependencies
-go build ./...           # Verify compilation
-go test ./...            # Run tests
-golangci-lint run --timeout=10m  # Lint (MUST pass)
+GOTOOLCHAIN=auto go build ./...   # compile (go.mod pins go 1.26.2)
+GOTOOLCHAIN=auto go vet ./...     # vet
+GOTOOLCHAIN=auto go test ./...    # tests
+golangci-lint run                 # lint — must pass
 ```
 
-#### Pre-commit One-liner
+## Conventions
 
-```bash
-go build ./... && go test ./... && golangci-lint run --timeout=10m
+- **3-layer architecture**, dependencies flow one way only: `web → logic →
+  core`. Web handles HTTP/JSON/validation and delegates; Logic holds business
+  rules and calls repository interfaces (no SQL, no `gin`, no
+  `database.GetPool()`); Core owns domain models, the repository interface, and
+  the Postgres implementation. Core imports nothing from Web or Logic.
+
+  ```mermaid
+  flowchart LR
+      Web["web/v1<br/>HTTP handlers"] --> Logic["logic/v1<br/>business rules"]
+      gRPC["grpc/v1<br/>transport adapter"] --> Logic
+      Logic --> Core["core<br/>domain + repository"]
+      Core --> DB[("PostgreSQL<br/>pgx/v5")]
+  ```
+
+- **gRPC SERVER**: this service exposes `shipping.v1.ShippingService` on `:9090`
+  (`GRPC_PORT`). The only method is `GetShipmentByOrder`, which mirrors
+  `GET /shipping/v1/internal/orders/:orderId` and is called by `order-service`
+  on the order-details path. gRPC is the official east-west transport, so the
+  server always runs; HTTP `:8080` is unaffected. Bootstrap via shared
+  `github.com/duynhlab/pkg/grpcx` (`grpcx.NewServer` provides OpenTelemetry
+  interceptors, health, reflection). Proto lives in
+  `github.com/duynhlab/pkg/proto/shipping/v1`.
+- **Observability** via shared `github.com/duynhlab/pkg/obsx`:
+  - gRPC RED metrics (`rpc_server_*`) are exported through the global OTel
+    MeterProvider onto the single `/metrics` handler (shared registry, scraped
+    by the platform ServiceMonitor — no separate metrics port). `SetupMetrics()`
+    runs before `grpcx.NewServer`.
+  - Logging uses `obsx.TraceIDFromContext` so the log `trace_id` matches the
+    active span.
+  - HTTP middleware chain order is `tracing → logging → metrics`.
+- **Diagrams**: Mermaid only. Never ASCII art.
+
+## Gotchas
+
+- The gRPC server (`internal/grpc/v1/server.go`) is a transport peer of the Web
+  layer: it calls the same logic service and must never touch the database
+  directly or embed business rules.
+- A missing shipment is **not** an error. `GetShipmentByOrder` returns an empty
+  response (unset shipment) when logic reports `ErrShipmentNotFound`, so callers
+  treat "no shipment yet" like the HTTP 404 path.
+- Kyverno admission rejects bad images: pin `ghcr.io/duynhlab/<service>:<sha>`
+  or `:vX.Y.Z`, never `:latest`.
+- The Flyway migration init image carries a `db/migrations/.trivyignore` for
+  upstream CVEs bundled in the official Flyway image. Re-evaluate the listed CVEs
+  when Flyway ships a patched release; do not silence findings outside that file.
 ```
-
-### Common Lint Fixes
-
-- `perfsprint`: Use `errors.New()` instead of `fmt.Errorf()` when no format verbs
-- `nosprintfhostport`: Use `net.JoinHostPort()` instead of `fmt.Sprintf("%s:%s", host, port)`
-- `errcheck`: Always check error returns (or explicitly `_ = fn()`)
-- `goconst`: Extract repeated string literals to constants
-- `gocognit`: Extract helper functions to reduce complexity
-- `noctx`: Use `http.NewRequestWithContext()` instead of `http.NewRequest()`
-
-## 🔧 Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Language | Go 1.26 |
-| HTTP Framework | Gin |
-| gRPC | `google.golang.org/grpc` via shared `github.com/duynhlab/pkg/grpcx` |
-| Database | PostgreSQL via `pgx/v5` (simple protocol, pooler-safe) |
-| Tracing | OpenTelemetry (`otelgin`, OTLP/HTTP) |
-| Metrics | `github.com/duynhlab/pkg/obsx` + Prometheus middleware |
-| Profiling | Pyroscope |
-
-## 📡 gRPC (east-west transport)
-
-shipping-service is a gRPC **server**. gRPC is the official east-west transport,
-so the server **always runs** on `:9090` (`GRPC_PORT`); HTTP `:8080` is unaffected.
-It returns `nil` only if the listener cannot bind.
-
-- Proto: `github.com/duynhlab/pkg/proto/shipping/v1`
-- Service: `shipping.v1.ShippingService`
-- Method: `GetShipmentByOrder` — mirrors `GET /shipping/v1/internal/orders/:orderId`; called by `order-service` on order-details
-- Bootstrap: `grpcx.NewServer()` provides OpenTelemetry interceptors, health, reflection
-- Missing shipment → empty response (unset shipment), **not** an error — callers treat "no shipment yet" like the HTTP 404 path
-
-## 📈 Observability
-
-- **Metrics on a single `/metrics`** (shared registry, scraped by the platform
-  ServiceMonitor — **no separate metrics port**):
-  - HTTP RED metrics (`request_duration_seconds`, `requests_in_flight`, sizes)
-    from `middleware/prometheus.go`, with Tempo exemplars.
-  - gRPC RED metrics (`rpc_server_*`) from `obsx.SetupMetrics()` via the global
-    OTel MeterProvider. `SetupMetrics()` runs before `grpcx.NewServer`.
-- **Logging**: the logging middleware uses `obsx.TraceIDFromContext` so the log
-  `trace_id` matches the active span (falls back to header/generated ID).
-- **Middleware chain order**: tracing → logging → metrics.
-
-## 🏗️ Infrastructure Details
-
-### Database
-
-| Component | Value |
-|-----------|-------|
-| **Cluster** | supporting-db (shared with user, notification) |
-| **PostgreSQL** | 16 |
-| **HA** | Single instance |
-| **Pooler** | PgBouncer Sidecar |
-| **Endpoint** | `supporting-db-pooler.user.svc.cluster.local:5432` |
-| **Pool Mode** | Transaction |
-| **Cross-namespace** | Yes (cluster in `user` namespace) |
-
-**Note:** Database cluster is in `user` namespace. Zalando Operator syncs credentials via cross-namespace secret.
-
-### Graceful Shutdown
-
-**VictoriaMetrics Pattern:**
-1. `/ready` → 503 when shutting down
-2. Drain delay (5s)
-3. Sequential: HTTP → Database → Tracer
-
-## 🔌 API Reference
-
-Routes are mounted directly at `/{service}/v1/{audience}/…` (Variant A — single URL shape). Kong is pure pass-through for `public`; `internal` is reachable only via service DNS.
-
-| Method | Path | Audience | Description |
-|--------|------|----------|-------------|
-| `GET` | `/shipping/v1/public/track` | public | Track shipment (query: `tracking_number`) |
-| `GET` | `/shipping/v1/public/estimate` | public | Estimate shipping cost |
-| `GET` | `/shipping/v1/internal/orders/:orderId` | internal | Get shipment by order ID — HTTP fallback; primary transport is gRPC `shipping.v1.ShippingService/GetShipmentByOrder` on `:9090`, called by `order-service` |
-
-Full convention + inventory: [`homelab/docs/api/api-naming-convention.md`](https://github.com/duynhlab/homelab/blob/main/docs/api/api-naming-convention.md).

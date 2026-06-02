@@ -6,6 +6,9 @@
 
 Shipping microservice. Manages shipment tracking, cost estimation, and delivery.
 
+Module path: `github.com/duynhlab/shipping-service`. It serves an HTTP API and a
+gRPC server (`shipping.v1.ShippingService`) consumed by `order-service`.
+
 ## 🏗️ Architecture Guidelines
 
 ### 3-Layer Architecture
@@ -13,8 +16,13 @@ Shipping microservice. Manages shipment tracking, cost estimation, and delivery.
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
 | **Web** | `internal/web/v1/handler.go` | HTTP, validation |
+| **gRPC** | `internal/grpc/v1/server.go` | gRPC transport adapter (mirrors Web) |
 | **Logic** | `internal/logic/v1/service.go` | Business rules (❌ NO SQL) |
-| **Core** | `internal/core/` | Domain models, repositories |
+| **Core** | `internal/core/` | Domain models, repository interface + Postgres impl |
+
+The gRPC server is a thin adapter over the **same** logic layer as the HTTP
+handlers, so both transports return identical data. It lives at the transport
+level (alongside Web) and must never embed business rules.
 
 ### 3-Layer Coding Rules
 
@@ -58,16 +66,18 @@ Web -> Logic -> Core (one-way only, never reverse)
 
 ```
 shipping-service/
-├── cmd/main.go
+├── cmd/main.go              # Wires HTTP (:8080) + gRPC (:9090) servers
 ├── config/config.go
 ├── db/migrations/sql/
 ├── internal/
 │   ├── core/
-│   │   ├── database.go
-│   │   └── domain/
+│   │   ├── database.go      # pgx/v5 pool (pooler-safe: simple protocol)
+│   │   ├── domain/          # Shipment model, repository interface, errors
+│   │   └── repository/postgres/  # ShipmentRepository impl (SQL)
 │   ├── logic/v1/service.go
+│   ├── grpc/v1/server.go    # shipping.v1.ShippingService server (adapter over logic)
 │   └── web/v1/handler.go
-├── middleware/
+├── middleware/              # tracing, logging, prometheus, profiling, resource
 └── Dockerfile
 ```
 
@@ -109,9 +119,37 @@ go build ./... && go test ./... && golangci-lint run --timeout=10m
 
 | Component | Technology |
 |-----------|------------|
-| Framework | Gin |
-| Database | PostgreSQL 16 via pgx/v5 |
-| Tracing | OpenTelemetry |
+| Language | Go 1.26 |
+| HTTP Framework | Gin |
+| gRPC | `google.golang.org/grpc` via shared `github.com/duynhlab/pkg/grpcx` |
+| Database | PostgreSQL via `pgx/v5` (simple protocol, pooler-safe) |
+| Tracing | OpenTelemetry (`otelgin`, OTLP/HTTP) |
+| Metrics | `github.com/duynhlab/pkg/obsx` + Prometheus middleware |
+| Profiling | Pyroscope |
+
+## 📡 gRPC (east-west transport)
+
+shipping-service is a gRPC **server**. gRPC is the official east-west transport,
+so the server **always runs** on `:9090` (`GRPC_PORT`); HTTP `:8080` is unaffected.
+It returns `nil` only if the listener cannot bind.
+
+- Proto: `github.com/duynhlab/pkg/proto/shipping/v1`
+- Service: `shipping.v1.ShippingService`
+- Method: `GetShipmentByOrder` — mirrors `GET /shipping/v1/internal/orders/:orderId`; called by `order-service` on order-details
+- Bootstrap: `grpcx.NewServer()` provides OpenTelemetry interceptors, health, reflection
+- Missing shipment → empty response (unset shipment), **not** an error — callers treat "no shipment yet" like the HTTP 404 path
+
+## 📈 Observability
+
+- **Metrics on a single `/metrics`** (shared registry, scraped by the platform
+  ServiceMonitor — **no separate metrics port**):
+  - HTTP RED metrics (`request_duration_seconds`, `requests_in_flight`, sizes)
+    from `middleware/prometheus.go`, with Tempo exemplars.
+  - gRPC RED metrics (`rpc_server_*`) from `obsx.SetupMetrics()` via the global
+    OTel MeterProvider. `SetupMetrics()` runs before `grpcx.NewServer`.
+- **Logging**: the logging middleware uses `obsx.TraceIDFromContext` so the log
+  `trace_id` matches the active span (falls back to header/generated ID).
+- **Middleware chain order**: tracing → logging → metrics.
 
 ## 🏗️ Infrastructure Details
 
@@ -144,6 +182,6 @@ Routes are mounted directly at `/{service}/v1/{audience}/…` (Variant A — sin
 |--------|------|----------|-------------|
 | `GET` | `/shipping/v1/public/track` | public | Track shipment (query: `tracking_number`) |
 | `GET` | `/shipping/v1/public/estimate` | public | Estimate shipping cost |
-| `GET` | `/shipping/v1/internal/orders/:orderId` | internal | Get shipment by order ID — called by `order-service` via `http://shipping.shipping.svc.cluster.local:8080` |
+| `GET` | `/shipping/v1/internal/orders/:orderId` | internal | Get shipment by order ID — HTTP fallback; primary transport is gRPC `shipping.v1.ShippingService/GetShipmentByOrder` on `:9090`, called by `order-service` |
 
 Full convention + inventory: [`homelab/docs/api/api-naming-convention.md`](https://github.com/duynhlab/homelab/blob/main/docs/api/api-naming-convention.md).

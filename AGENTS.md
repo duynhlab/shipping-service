@@ -45,7 +45,7 @@ gRPC server (`shipping.v1.ShippingService`) on `:9090` consumed by
 shipping-service/
 ├── cmd/main.go                       # Wires HTTP (:8080) + gRPC (:9090), graceful shutdown
 ├── config/config.go                  # Env-driven configuration + validation
-├── db/migrations/                    # Flyway migrations (sql/) + init image Dockerfile + .trivyignore
+├── db/migrations/                    # golang-migrate SQL (sql/000001_*.up.sql) + embed.go
 ├── internal/
 │   ├── web/v1/handler.go             # HTTP handlers, JSON binding, DTO mapping
 │   ├── logic/v1/                     # Business rules (service.go, errors.go, tests)
@@ -110,7 +110,8 @@ golangci-lint run                 # lint — must pass
   treat "no shipment yet" like the HTTP 404 path.
 - Kyverno admission rejects bad images: pin `ghcr.io/duynhlab/<service>:<sha>`
   or `:vX.Y.Z`, never `:latest`.
-- The Flyway migration init image carries a `db/migrations/.trivyignore` for
-  upstream CVEs bundled in the official Flyway image. Re-evaluate the listed CVEs
-  when Flyway ships a patched release; do not silence findings outside that file.
+- Migrations run via golang-migrate v4.19.1, embedded through `db/migrations/embed.go`
+  (`embed.FS`) and applied by `pkg/migratex` from the `migrate` subcommand. The init
+  container reuses the app image (`args: ["migrate"]`) — no separate migration image.
+  Migrations are forward-only `*.up.sql` files.
 ```

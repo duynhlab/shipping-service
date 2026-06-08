@@ -10,4 +10,7 @@ RUN apk upgrade --no-cache && apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/shipping-service .
 EXPOSE 8080
-CMD ["./shipping-service"]
+
+# ENTRYPOINT (not CMD) so the migrate init container/compose can pass the
+# `migrate` subcommand via args while the main container serves with no args.
+ENTRYPOINT ["./shipping-service"]

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"os/signal"
 	"sync/atomic"
 	"syscall"
@@ -16,9 +17,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/duynhlab/pkg/grpcx"
+	"github.com/duynhlab/pkg/migratex"
 	"github.com/duynhlab/pkg/obsx"
 	shippingv1 "github.com/duynhlab/pkg/proto/shipping/v1"
 	"github.com/duynhlab/shipping-service/config"
+	migrations "github.com/duynhlab/shipping-service/db/migrations"
 	database "github.com/duynhlab/shipping-service/internal/core"
 	"github.com/duynhlab/shipping-service/internal/core/repository/postgres"
 	grpcv1 "github.com/duynhlab/shipping-service/internal/grpc/v1"
@@ -29,15 +32,26 @@ import (
 
 func main() {
 	cfg := config.Load()
-	if err := cfg.Validate(); err != nil {
-		panic("Configuration validation failed: " + err.Error())
-	}
 
 	logger, err := middleware.NewLogger()
 	if err != nil {
 		panic("Failed to initialize logger: " + err.Error())
 	}
 	defer func() { _ = logger.Sync() }()
+
+	// `<binary> migrate` runs embedded schema migrations (init container, against
+	// the direct DB host) and exits; no args serves the app.
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := migratex.Run(migrations.FS, "sql", cfg.Database.BuildDSN()); err != nil {
+			logger.Fatal("Schema migration failed", zap.Error(err))
+		}
+		logger.Info("Schema migrations applied")
+		return
+	}
+
+	if err := cfg.Validate(); err != nil {
+		panic("Configuration validation failed: " + err.Error())
+	}
 
 	logger.Info("Service starting",
 		zap.String("service", cfg.Service.Name),

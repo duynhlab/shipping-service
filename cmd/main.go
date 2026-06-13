@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/duynhlab/pkg/grpcx"
+	"github.com/duynhlab/pkg/logger/zapx"
 	"github.com/duynhlab/pkg/migratex"
 	"github.com/duynhlab/pkg/obsx"
 	shippingv1 "github.com/duynhlab/pkg/proto/shipping/v1"
@@ -33,7 +34,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	logger, err := middleware.NewLogger()
+	logger, err := zapx.New(os.Getenv("LOG_LEVEL"))
 	if err != nil {
 		panic("Failed to initialize logger: " + err.Error())
 	}

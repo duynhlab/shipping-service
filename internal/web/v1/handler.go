@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/duynhlab/pkg/httpx"
 	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
 	"github.com/duynhlab/shipping-service/middleware"
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,7 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 	span.SetAttributes(attribute.String("tracking.id", trackingID))
 
 	if trackingID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameter: tracking_number"})
+		httpx.RespondError(c, http.StatusBadRequest, httpx.CodeValidation, "Missing required parameter: tracking_number")
 		return
 	}
 
@@ -53,11 +54,11 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 
 		switch {
 		case errors.Is(err, logicv1.ErrShipmentNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": "Shipment not found"})
+			httpx.RespondError(c, http.StatusNotFound, httpx.CodeNotFound, "Shipment not found")
 		case errors.Is(err, logicv1.ErrCarrierUnavailable):
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Carrier unavailable"})
+			httpx.RespondError(c, http.StatusServiceUnavailable, httpx.CodeInternal, "Carrier unavailable")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			httpx.RespondError(c, http.StatusInternalServerError, httpx.CodeInternal, "Internal server error")
 		}
 		return
 	}
@@ -84,16 +85,14 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 
 	// Validate required params
 	if origin == "" || destination == "" || weightStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing required parameters: origin, destination, weight",
-		})
+		httpx.RespondError(c, http.StatusBadRequest, httpx.CodeValidation, "Missing required parameters: origin, destination, weight")
 		return
 	}
 
 	// Parse weight
 	weight, err := strconv.ParseFloat(weightStr, 64)
 	if err != nil || weight <= 0 || math.IsNaN(weight) || math.IsInf(weight, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "weight must be a positive number"})
+		httpx.RespondError(c, http.StatusBadRequest, httpx.CodeValidation, "weight must be a positive number")
 		return
 	}
 
@@ -107,7 +106,7 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 	if err != nil {
 		span.RecordError(err)
 		zapLogger.Error("Failed to estimate shipping", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		httpx.RespondError(c, http.StatusInternalServerError, httpx.CodeInternal, "Internal server error")
 		return
 	}
 
@@ -142,9 +141,9 @@ func (h *Handler) GetShipmentByOrder(c *gin.Context) {
 
 		switch {
 		case errors.Is(err, logicv1.ErrShipmentNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": "Shipment not found for this order"})
+			httpx.RespondError(c, http.StatusNotFound, httpx.CodeNotFound, "Shipment not found for this order")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			httpx.RespondError(c, http.StatusInternalServerError, httpx.CodeInternal, "Internal server error")
 		}
 		return
 	}

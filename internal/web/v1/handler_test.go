@@ -26,6 +26,10 @@ func (m *mockShipmentRepo) GetByTrackingNumber(_ context.Context, _ string) (*do
 func (m *mockShipmentRepo) GetByOrderID(_ context.Context, _ string) (*domain.Shipment, error) {
 	return m.shipment, m.err
 }
+func (m *mockShipmentRepo) CreateShipment(_ context.Context, _ string) (*domain.Shipment, error) {
+	return m.shipment, m.err
+}
+func (m *mockShipmentRepo) CancelShipment(_ context.Context, _ string) error { return m.err }
 
 func newHandler(repo domain.ShipmentRepository) *Handler {
 	return NewHandler(logicv1.NewShippingService(repo))

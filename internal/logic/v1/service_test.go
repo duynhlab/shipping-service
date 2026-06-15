@@ -13,6 +13,12 @@ import (
 type mockShipmentRepository struct {
 	shipment *domain.Shipment
 	err      error
+
+	createResult *domain.Shipment
+	createErr    error
+	cancelErr    error
+	createdID    string
+	cancelledID  string
 }
 
 func (m *mockShipmentRepository) GetByTrackingNumber(ctx context.Context, trackingNumber string) (*domain.Shipment, error) {
@@ -21,6 +27,16 @@ func (m *mockShipmentRepository) GetByTrackingNumber(ctx context.Context, tracki
 
 func (m *mockShipmentRepository) GetByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error) {
 	return m.shipment, m.err
+}
+
+func (m *mockShipmentRepository) CreateShipment(_ context.Context, orderID string) (*domain.Shipment, error) {
+	m.createdID = orderID
+	return m.createResult, m.createErr
+}
+
+func (m *mockShipmentRepository) CancelShipment(_ context.Context, orderID string) error {
+	m.cancelledID = orderID
+	return m.cancelErr
 }
 
 func TestEstimateShipping(t *testing.T) {

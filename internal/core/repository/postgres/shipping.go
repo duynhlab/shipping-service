@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/duynhlab/shipping-service/internal/core/domain"
@@ -63,6 +64,57 @@ func (r *ShipmentRepository) GetByOrderID(ctx context.Context, orderID string) (
 	}
 
 	return shipment, nil
+}
+
+// CreateShipment creates a shipment for an order, or returns the existing one if
+// the order already has one (idempotent by order_id via the unique constraint).
+// The tracking number is derived from the order id, so a retry is idempotent on
+// the tracking_number unique constraint too.
+func (r *ShipmentRepository) CreateShipment(ctx context.Context, orderID string) (*domain.Shipment, error) {
+	oid, err := strconv.Atoi(orderID)
+	if err != nil {
+		return nil, fmt.Errorf("create shipment: invalid order id %q: %w", orderID, err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	tracking := fmt.Sprintf("MOP%010d", oid)
+	const carrier = "MOP Express"
+
+	query := `
+		INSERT INTO shipments (order_id, tracking_number, carrier, status, estimated_delivery)
+		VALUES ($1, $2, $3, 'pending', NOW() + INTERVAL '5 days')
+		ON CONFLICT (order_id) DO NOTHING
+		RETURNING id, order_id, tracking_number, carrier, status, estimated_delivery, created_at, updated_at
+	`
+	row := r.db.QueryRow(ctx, query, oid, tracking, carrier)
+	shipment, err := r.scanShipment(row)
+	if err == nil {
+		return shipment, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("create shipment for order %q: %w", orderID, err)
+	}
+	// ON CONFLICT DO NOTHING returned no row: a shipment already exists for this
+	// order — return it so the call is idempotent.
+	return r.GetByOrderID(ctx, orderID)
+}
+
+// CancelShipment marks the order's shipment cancelled. Idempotent: zero rows
+// affected (no shipment, or already cancelled) is still a success.
+func (r *ShipmentRepository) CancelShipment(ctx context.Context, orderID string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		`UPDATE shipments SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+		 WHERE order_id = $1 AND status <> 'cancelled'`,
+		orderID)
+	if err != nil {
+		return fmt.Errorf("cancel shipment for order %q: %w", orderID, err)
+	}
+	return nil
 }
 
 func (r *ShipmentRepository) scanShipment(row pgx.Row) (*domain.Shipment, error) {

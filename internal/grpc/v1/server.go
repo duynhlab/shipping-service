@@ -15,21 +15,23 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ShipmentGetter is the logic-layer dependency the gRPC server needs.
+// ShipmentService is the logic-layer dependency the gRPC server needs.
 // *logicv1.ShippingService satisfies it.
-type ShipmentGetter interface {
+type ShipmentService interface {
 	GetShipmentByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error)
+	CreateShipment(ctx context.Context, orderID string) (*domain.Shipment, error)
+	CancelShipment(ctx context.Context, orderID string) error
 }
 
 // Server implements shippingv1.ShippingServiceServer.
 type Server struct {
 	shippingv1.UnimplementedShippingServiceServer
 
-	svc ShipmentGetter
+	svc ShipmentService
 }
 
 // NewServer creates a gRPC ShippingService server backed by the logic service.
-func NewServer(svc ShipmentGetter) *Server {
+func NewServer(svc ShipmentService) *Server {
 	return &Server{svc: svc}
 }
 
@@ -51,6 +53,37 @@ func (s *Server) GetShipmentByOrder(
 		return &shippingv1.GetShipmentByOrderResponse{}, nil
 	}
 	return &shippingv1.GetShipmentByOrderResponse{Shipment: toProto(shipment)}, nil
+}
+
+// CreateShipment creates a shipment for an order (order-fulfillment saga, step
+// 2). Idempotent by order_id. The destination address is accepted but not
+// persisted yet (forward-compat).
+func (s *Server) CreateShipment(
+	ctx context.Context,
+	req *shippingv1.CreateShipmentRequest,
+) (*shippingv1.CreateShipmentResponse, error) {
+	if req.GetOrderId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "order_id is required")
+	}
+	shipment, err := s.svc.CreateShipment(ctx, req.GetOrderId())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to create shipment")
+	}
+	return &shippingv1.CreateShipmentResponse{Shipment: toProto(shipment)}, nil
+}
+
+// CancelShipment cancels the order's shipment (saga compensation). Idempotent.
+func (s *Server) CancelShipment(
+	ctx context.Context,
+	req *shippingv1.CancelShipmentRequest,
+) (*shippingv1.CancelShipmentResponse, error) {
+	if req.GetOrderId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "order_id is required")
+	}
+	if err := s.svc.CancelShipment(ctx, req.GetOrderId()); err != nil {
+		return nil, status.Error(codes.Internal, "failed to cancel shipment")
+	}
+	return &shippingv1.CancelShipmentResponse{}, nil
 }
 
 // toProto maps the domain shipment to its protobuf representation. Timestamps

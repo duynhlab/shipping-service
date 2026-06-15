@@ -124,3 +124,45 @@ func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID stri
 
 	return shipment, nil
 }
+
+// CreateShipment creates a shipment for an order (order-fulfillment saga, step
+// 2). Idempotent by orderID: a repeat call returns the existing shipment. The
+// destination address from the saga is not persisted yet (the shipment is keyed
+// by order); add a column when carrier integration needs it.
+func (s *ShippingService) CreateShipment(ctx context.Context, orderID string) (*domain.Shipment, error) {
+	ctx, span := middleware.StartSpan(ctx, "shipping.create", trace.WithAttributes(
+		attribute.String("layer", "logic"),
+		attribute.String("api.version", "v1"),
+		attribute.String("order_id", orderID),
+	))
+	defer span.End()
+
+	shipment, err := s.repo.CreateShipment(ctx, orderID)
+	if err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+
+	span.SetAttributes(
+		attribute.Int("shipment.id", shipment.ID),
+		attribute.String("shipment.tracking_number", shipment.TrackingNumber),
+	)
+	return shipment, nil
+}
+
+// CancelShipment cancels the order's shipment (saga compensation for
+// CreateShipment). Idempotent by orderID.
+func (s *ShippingService) CancelShipment(ctx context.Context, orderID string) error {
+	ctx, span := middleware.StartSpan(ctx, "shipping.cancel", trace.WithAttributes(
+		attribute.String("layer", "logic"),
+		attribute.String("api.version", "v1"),
+		attribute.String("order_id", orderID),
+	))
+	defer span.End()
+
+	if err := s.repo.CancelShipment(ctx, orderID); err != nil {
+		span.RecordError(err)
+		return err
+	}
+	return nil
+}

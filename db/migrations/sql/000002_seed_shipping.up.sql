@@ -34,3 +34,8 @@ SELECT
     COUNT(DISTINCT carrier) as carrier_count,
     COUNT(CASE WHEN status = 'in_transit' THEN 1 END) as in_transit_count
 FROM shipments;
+
+-- Sequence realignment (consolidated from the former 000003_fix_sequences):
+-- the seed rows above use explicit ids, so realign the sequence to MAX(id) here,
+-- or the first app INSERT collides on the primary key.
+SELECT setval('shipments_id_seq', (SELECT MAX(id) FROM shipments));

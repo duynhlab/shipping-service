@@ -87,7 +87,22 @@ func main() {
 		}
 	}
 
-	initProfiling(cfg, logger)
+	// Initialize Pyroscope profiling via shared obsx helper
+	if cfg.Profiling.Enabled {
+		stopProfiling, err := obsx.SetupProfiling()
+		if err != nil {
+			logger.Warn("Failed to initialize profiling", zap.Error(err))
+		} else {
+			logger.Info("Profiling initialized", zap.String("endpoint", cfg.Profiling.Endpoint))
+			defer func() {
+				if err := stopProfiling(context.Background()); err != nil {
+					logger.Error("Profiling shutdown error", zap.Error(err))
+				}
+			}()
+		}
+	} else {
+		logger.Info("Profiling disabled (PROFILING_ENABLED=false)")
+	}
 
 	// Initialize dependencies
 	shippingRepo := postgres.NewShipmentRepository(pool)
@@ -143,18 +158,6 @@ func initTracing(cfg *config.Config, logger *zap.Logger) interface{ Shutdown(con
 		zap.Float64("sample_rate", cfg.Tracing.SampleRate),
 	)
 	return tp
-}
-
-func initProfiling(cfg *config.Config, logger *zap.Logger) {
-	if !cfg.Profiling.Enabled {
-		logger.Info("Profiling disabled (PROFILING_ENABLED=false)")
-		return
-	}
-	if err := middleware.InitProfiling(); err != nil {
-		logger.Warn("Failed to initialize profiling", zap.Error(err))
-		return
-	}
-	logger.Info("Profiling initialized", zap.String("endpoint", cfg.Profiling.Endpoint))
 }
 
 func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.Bool, handler *webv1.Handler, pool interface {
@@ -257,6 +260,5 @@ func runGracefulShutdown(
 		}
 	}
 
-	middleware.StopProfiling()
 	logger.Info("Graceful shutdown complete")
 }

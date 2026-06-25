@@ -30,6 +30,11 @@ already here.
 - Keep changes idiomatic: dependency injection via constructor parameters,
   structured logging with `zap`, context propagation on all I/O.
 - Write tests for new logic (see `internal/logic/v1/service_test.go`).
+- Before pushing or opening a PR, verify Sonar new-code coverage ≥80%: run
+  `go test -race -coverprofile=coverage.out ./...` and confirm changed lines are
+  covered, including BOTH branches of any new conditional. `**/cmd/**`,
+  `**/db/migrations/**`, `**/core/repository/**` are coverage-excluded;
+  everything else counts.
 
 ## Project overview
 

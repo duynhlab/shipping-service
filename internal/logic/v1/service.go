@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"github.com/duynhlab/shipping-service/internal/core/domain"
 	"github.com/duynhlab/shipping-service/middleware"
@@ -106,6 +107,13 @@ func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID stri
 	))
 	defer span.End()
 
+	// order_id is an integer column; a non-numeric id can never match a row, so
+	// treat it as "not found" here instead of letting Postgres raise a cast error.
+	if _, err := strconv.Atoi(orderID); err != nil {
+		span.SetAttributes(attribute.Bool("shipment.found", false))
+		return nil, ErrShipmentNotFound
+	}
+
 	shipment, err := s.repo.GetByOrderID(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, domain.ErrShipmentNotFound) {
@@ -136,6 +144,13 @@ func (s *ShippingService) CreateShipment(ctx context.Context, orderID string) (*
 		attribute.String("order_id", orderID),
 	))
 	defer span.End()
+
+	// order_id is an integer column; reject a non-numeric id up front so the
+	// caller gets a clean InvalidArgument instead of a DB cast error.
+	if _, err := strconv.Atoi(orderID); err != nil {
+		span.SetAttributes(attribute.Bool("order_id.valid", false))
+		return nil, ErrInvalidOrderID
+	}
 
 	shipment, err := s.repo.CreateShipment(ctx, orderID)
 	if err != nil {

@@ -198,6 +198,12 @@ func TestGetShipmentByOrderID(t *testing.T) {
 			wantErr: ErrShipmentNotFound,
 		},
 		{
+			name:    "non-numeric order id maps to not found",
+			orderID: "not-a-number",
+			repo:    &mockShipmentRepository{shipment: &domain.Shipment{ID: 1}},
+			wantErr: ErrShipmentNotFound,
+		},
+		{
 			name:    "repo error propagates",
 			orderID: "500",
 			repo:    &mockShipmentRepository{err: repoErr},

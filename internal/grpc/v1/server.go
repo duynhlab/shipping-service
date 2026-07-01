@@ -67,6 +67,9 @@ func (s *Server) CreateShipment(
 	}
 	shipment, err := s.svc.CreateShipment(ctx, req.GetOrderId())
 	if err != nil {
+		if errors.Is(err, logicv1.ErrInvalidOrderID) {
+			return nil, status.Error(codes.InvalidArgument, "order_id must be a valid order identifier")
+		}
 		return nil, status.Error(codes.Internal, "failed to create shipment")
 	}
 	return &shippingv1.CreateShipmentResponse{Shipment: toProto(shipment)}, nil

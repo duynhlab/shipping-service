@@ -34,6 +34,19 @@ func TestCreateShipment(t *testing.T) {
 			t.Fatal("CreateShipment returned nil, want an error")
 		}
 	})
+
+	t.Run("rejects a non-numeric order id before hitting the repo", func(t *testing.T) {
+		repo := &mockShipmentRepository{createResult: &domain.Shipment{ID: 1}}
+		svc := NewShippingService(repo)
+
+		_, err := svc.CreateShipment(context.Background(), "not-a-number")
+		if !errors.Is(err, ErrInvalidOrderID) {
+			t.Fatalf("CreateShipment(non-numeric) err = %v, want ErrInvalidOrderID", err)
+		}
+		if repo.createdID != "" {
+			t.Errorf("repo was called with %q, want no call", repo.createdID)
+		}
+	})
 }
 
 func TestCancelShipment(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 
 	shippingv1 "github.com/duynhlab/pkg/proto/shipping/v1"
 	"github.com/duynhlab/shipping-service/internal/core/domain"
+	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -52,6 +53,14 @@ func TestServer_CreateShipment(t *testing.T) {
 	t.Run("missing order_id -> InvalidArgument", func(t *testing.T) {
 		srv := NewServer(&stubShipmentSvc{})
 		_, err := srv.CreateShipment(context.Background(), &shippingv1.CreateShipmentRequest{})
+		if status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("got code %v, want InvalidArgument", status.Code(err))
+		}
+	})
+
+	t.Run("invalid order id -> InvalidArgument", func(t *testing.T) {
+		srv := NewServer(&stubShipmentSvc{createErr: logicv1.ErrInvalidOrderID})
+		_, err := srv.CreateShipment(context.Background(), &shippingv1.CreateShipmentRequest{OrderId: "not-a-number"})
 		if status.Code(err) != codes.InvalidArgument {
 			t.Fatalf("got code %v, want InvalidArgument", status.Code(err))
 		}

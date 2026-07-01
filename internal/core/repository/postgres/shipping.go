@@ -82,23 +82,21 @@ func (r *ShipmentRepository) CreateShipment(ctx context.Context, orderID string)
 	tracking := fmt.Sprintf("MOP%010d", oid)
 	const carrier = "MOP Express"
 
+	// ON CONFLICT ... DO UPDATE (a no-op touch of order_id) always RETURNs the
+	// row, so a concurrent duplicate CreateShipment gets the existing shipment
+	// atomically — no read-after-conflict race with a separate SELECT.
 	query := `
 		INSERT INTO shipments (order_id, tracking_number, carrier, status, estimated_delivery)
 		VALUES ($1, $2, $3, 'pending', NOW() + INTERVAL '5 days')
-		ON CONFLICT (order_id) DO NOTHING
+		ON CONFLICT (order_id) DO UPDATE SET order_id = EXCLUDED.order_id
 		RETURNING id, order_id, tracking_number, carrier, status, estimated_delivery, created_at, updated_at
 	`
 	row := r.db.QueryRow(ctx, query, oid, tracking, carrier)
 	shipment, err := r.scanShipment(row)
-	if err == nil {
-		return shipment, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("create shipment for order %q: %w", orderID, err)
 	}
-	// ON CONFLICT DO NOTHING returned no row: a shipment already exists for this
-	// order — return it so the call is idempotent.
-	return r.GetByOrderID(ctx, orderID)
+	return shipment, nil
 }
 
 // CancelShipment marks the order's shipment cancelled. Idempotent: zero rows

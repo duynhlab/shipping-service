@@ -23,6 +23,11 @@ var (
 	// HTTP Status: 404 Not Found
 	ErrShipmentNotFound = errors.New("shipment not found")
 
+	// ErrInvalidOrderID indicates the supplied order ID is not a valid order
+	// identifier (e.g. non-numeric). gRPC maps it to codes.InvalidArgument.
+	// HTTP Status: 400 Bad Request
+	ErrInvalidOrderID = errors.New("invalid order id")
+
 	// ErrInvalidAddress indicates the shipping address is invalid or incomplete.
 	// HTTP Status: 400 Bad Request
 	ErrInvalidAddress = errors.New("invalid address")

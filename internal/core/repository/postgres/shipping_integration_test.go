@@ -103,7 +103,7 @@ func TestShipmentRepository_Integration(t *testing.T) {
 	pool := newTestDB(t)
 	repo := NewShipmentRepository(pool)
 	ctx := context.Background()
-	const orderID = "1001" // not present in the seed data (1,2,4)
+	const orderID = "1001" // arbitrary order id; migrations create no shipments
 
 	t.Run("CreateShipment is idempotent by order id", func(t *testing.T) {
 		first, err := repo.CreateShipment(ctx, orderID)

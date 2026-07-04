@@ -160,9 +160,27 @@ func TestShipmentRepository_Integration(t *testing.T) {
 		if got.Status != "cancelled" {
 			t.Errorf("status = %q, want cancelled", got.Status)
 		}
-		// Second cancel is a no-op (still succeeds).
+		// Second cancel is a no-op (still succeeds) and leaves the status cancelled.
 		if err := repo.CancelShipment(ctx, orderID); err != nil {
 			t.Errorf("second CancelShipment: %v", err)
+		}
+		got, err = repo.GetByOrderID(ctx, orderID)
+		if err != nil {
+			t.Fatalf("GetByOrderID after second cancel: %v", err)
+		}
+		if got.Status != "cancelled" {
+			t.Errorf("status after second cancel = %q, want cancelled", got.Status)
+		}
+	})
+
+	// Regression: the proto promises CancelShipment succeeds for an order with no
+	// shipment (the UPDATE simply affects 0 rows). The order-fulfillment saga
+	// relies on this — its CancelShipment compensation can fire before, or without,
+	// a shipment ever being created, and must not error.
+	t.Run("CancelShipment on a nonexistent order is a no-op success", func(t *testing.T) {
+		const noSuchOrder = "999999" // numeric, but no shipment is ever created for it in this test
+		if err := repo.CancelShipment(ctx, noSuchOrder); err != nil {
+			t.Errorf("CancelShipment(nonexistent) = %v, want nil (idempotent no-op)", err)
 		}
 	})
 

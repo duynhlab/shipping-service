@@ -3,7 +3,7 @@ module github.com/duynhlab/shipping-service
 go 1.26.2
 
 require (
-	github.com/duynhlab/pkg v0.12.2
+	github.com/duynhlab/pkg v0.14.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
@@ -16,7 +16,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/zap v1.28.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.0
 )
 
 require (

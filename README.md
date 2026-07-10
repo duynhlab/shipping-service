@@ -31,7 +31,10 @@ so the server always runs (HTTP `:8080` is unaffected).
 
 - Listen address: `:9090` (`GRPC_PORT`, default `9090`)
 - Service: `shipping.v1.ShippingService` (proto from `github.com/duynhlab/pkg/proto/shipping/v1`)
-- Method: `GetShipmentByOrder` — mirrors `GET /shipping/v1/internal/orders/:orderId`; called by `order-service` on order-details
+- Methods:
+  - `GetShipmentByOrder` — mirrors `GET /shipping/v1/internal/orders/:orderId`; called by `order-service` on order-details
+  - `CreateShipment` — the order saga's shipment step (called by `order-worker`); idempotent by `order_id`
+  - `CancelShipment` — the saga compensation; idempotent
 - Bootstrap via shared `github.com/duynhlab/pkg/grpcx` (`grpcx.NewServer`): OpenTelemetry interceptors, health, reflection
 - A missing shipment returns an empty response (unset shipment), not an error
 

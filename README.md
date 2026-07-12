@@ -18,9 +18,12 @@ All routes follow Variant A naming — single path for browser and in-cluster ca
 
 | Method | Path | Audience |
 |--------|------|----------|
-| `GET` | `/shipping/v1/public/track` | public (query: `tracking_number`) |
-| `GET` | `/shipping/v1/public/estimate` | public (query: `origin`, `destination`, `weight`) |
-| `GET` | `/shipping/v1/internal/orders/:orderId` | internal (order-service aggregation; in-cluster only) |
+| `GET` | `/shipping/v1/public/shipments/track` | public (query: `tracking_number`) |
+| `GET` | `/shipping/v1/public/shipments/estimate` | public (query: `origin`, `destination`, `weight`) |
+| `GET` | `/shipping/v1/internal/shipments/orders/:orderId` | internal (order-service aggregation; in-cluster only) |
+
+The pre-v3 verb paths (`/shipping/v1/public/{track,estimate}`) stay mounted as
+**deprecated aliases** for one release during the v3 rollout (homelab ADR-017).
 
 Operational endpoints: `GET /health`, `GET /ready` (DB ping + drain-aware), `GET /metrics`.
 
@@ -32,7 +35,7 @@ so the server always runs (HTTP `:8080` is unaffected).
 - Listen address: `:9090` (`GRPC_PORT`, default `9090`)
 - Service: `shipping.v1.ShippingService` (proto from `github.com/duynhlab/pkg/proto/shipping/v1`)
 - Methods:
-  - `GetShipmentByOrder` — mirrors `GET /shipping/v1/internal/orders/:orderId`; called by `order-service` on order-details
+  - `GetShipmentByOrder` — mirrors `GET /shipping/v1/internal/shipments/orders/:orderId`; called by `order-service` on order-details
   - `CreateShipment` — the order saga's shipment step (called by `order-worker`); idempotent by `order_id`
   - `CancelShipment` — the saga compensation; idempotent
 - Bootstrap via shared `github.com/duynhlab/pkg/grpcx` (`grpcx.NewServer`): OpenTelemetry interceptors, health, reflection

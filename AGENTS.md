@@ -104,7 +104,7 @@ golangci-lint run                 # lint — must pass
 
 - **gRPC SERVER**: this service exposes `shipping.v1.ShippingService` on `:9090`
   (`GRPC_PORT`). The only method is `GetShipmentByOrder`, which mirrors
-  `GET /shipping/v1/internal/orders/:orderId` and is called by `order-service`
+  `GET /shipping/v1/internal/shipments/orders/:orderId` and is called by `order-service`
   on the order-details path. gRPC is the official east-west transport, so the
   server always runs; HTTP `:8080` is unaffected. Bootstrap via shared
   `github.com/duynhlab/pkg/grpcx` (`grpcx.NewServer` provides OpenTelemetry

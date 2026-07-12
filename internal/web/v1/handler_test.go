@@ -55,7 +55,7 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 
 func TestTrackShipment_Success(t *testing.T) {
 	repo := &mockShipmentRepo{shipment: &domain.Shipment{ID: 1, TrackingNumber: "TN1", Status: "shipped"}}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/track?tracking_number=TN1", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/track?tracking_number=TN1", nil)
 	newHandler(repo).TrackShipment(c)
 
 	if rec.Code != http.StatusOK {
@@ -68,7 +68,7 @@ func TestTrackShipment_Success(t *testing.T) {
 
 func TestTrackShipment_LegacyParam(t *testing.T) {
 	repo := &mockShipmentRepo{shipment: &domain.Shipment{ID: 2, TrackingNumber: "TN2", Status: "shipped"}}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/track?trackingId=TN2", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/track?trackingId=TN2", nil)
 	newHandler(repo).TrackShipment(c)
 
 	if rec.Code != http.StatusOK {
@@ -77,7 +77,7 @@ func TestTrackShipment_LegacyParam(t *testing.T) {
 }
 
 func TestTrackShipment_MissingParam(t *testing.T) {
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/track", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/track", nil)
 	newHandler(&mockShipmentRepo{}).TrackShipment(c)
 
 	if rec.Code != http.StatusBadRequest {
@@ -90,7 +90,7 @@ func TestTrackShipment_MissingParam(t *testing.T) {
 
 func TestTrackShipment_NotFound(t *testing.T) {
 	repo := &mockShipmentRepo{err: domain.ErrShipmentNotFound}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/track?tracking_number=missing", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/track?tracking_number=missing", nil)
 	newHandler(repo).TrackShipment(c)
 
 	if rec.Code != http.StatusNotFound {
@@ -103,7 +103,7 @@ func TestTrackShipment_NotFound(t *testing.T) {
 
 func TestTrackShipment_InternalError(t *testing.T) {
 	repo := &mockShipmentRepo{err: context.DeadlineExceeded}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/track?tracking_number=boom", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/track?tracking_number=boom", nil)
 	newHandler(repo).TrackShipment(c)
 
 	if rec.Code != http.StatusInternalServerError {
@@ -115,7 +115,7 @@ func TestTrackShipment_InternalError(t *testing.T) {
 }
 
 func TestEstimateShipping_Success(t *testing.T) {
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/estimate?origin=A&destination=B&weight=2.5", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/estimate?origin=A&destination=B&weight=2.5", nil)
 	newHandler(&mockShipmentRepo{}).EstimateShipping(c)
 
 	if rec.Code != http.StatusOK {
@@ -127,7 +127,7 @@ func TestEstimateShipping_Success(t *testing.T) {
 }
 
 func TestEstimateShipping_MissingParams(t *testing.T) {
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/estimate?origin=A", nil)
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/estimate?origin=A", nil)
 	newHandler(&mockShipmentRepo{}).EstimateShipping(c)
 
 	if rec.Code != http.StatusBadRequest {
@@ -141,7 +141,7 @@ func TestEstimateShipping_MissingParams(t *testing.T) {
 func TestEstimateShipping_InvalidWeight(t *testing.T) {
 	cases := []string{"abc", "0", "-1", "NaN", "Inf"}
 	for _, w := range cases {
-		c, rec := newCtx(http.MethodGet, "/shipping/v1/public/estimate?origin=A&destination=B&weight="+w, nil)
+		c, rec := newCtx(http.MethodGet, "/shipping/v1/public/shipments/estimate?origin=A&destination=B&weight="+w, nil)
 		newHandler(&mockShipmentRepo{}).EstimateShipping(c)
 
 		if rec.Code != http.StatusBadRequest {
@@ -155,7 +155,7 @@ func TestEstimateShipping_InvalidWeight(t *testing.T) {
 
 func TestGetShipmentByOrder_Success(t *testing.T) {
 	repo := &mockShipmentRepo{shipment: &domain.Shipment{ID: 5, OrderID: 42, Status: "delivered"}}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/internal/orders/42", gin.Params{{Key: "orderId", Value: "42"}})
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/internal/shipments/orders/42", gin.Params{{Key: "orderId", Value: "42"}})
 	newHandler(repo).GetShipmentByOrder(c)
 
 	if rec.Code != http.StatusOK {
@@ -168,7 +168,7 @@ func TestGetShipmentByOrder_Success(t *testing.T) {
 
 func TestGetShipmentByOrder_NotFound(t *testing.T) {
 	repo := &mockShipmentRepo{err: domain.ErrShipmentNotFound}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/internal/orders/9", gin.Params{{Key: "orderId", Value: "9"}})
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/internal/shipments/orders/9", gin.Params{{Key: "orderId", Value: "9"}})
 	newHandler(repo).GetShipmentByOrder(c)
 
 	if rec.Code != http.StatusNotFound {
@@ -181,7 +181,7 @@ func TestGetShipmentByOrder_NotFound(t *testing.T) {
 
 func TestGetShipmentByOrder_InternalError(t *testing.T) {
 	repo := &mockShipmentRepo{err: context.DeadlineExceeded}
-	c, rec := newCtx(http.MethodGet, "/shipping/v1/internal/orders/9", gin.Params{{Key: "orderId", Value: "9"}})
+	c, rec := newCtx(http.MethodGet, "/shipping/v1/internal/shipments/orders/9", gin.Params{{Key: "orderId", Value: "9"}})
 	newHandler(repo).GetShipmentByOrder(c)
 
 	if rec.Code != http.StatusInternalServerError {

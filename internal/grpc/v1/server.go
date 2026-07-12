@@ -35,7 +35,7 @@ func NewServer(svc ShipmentService) *Server {
 	return &Server{svc: svc}
 }
 
-// GetShipmentByOrder mirrors GET /shipping/v1/internal/orders/{order_id}.
+// GetShipmentByOrder mirrors GET /shipping/v1/internal/shipments/orders/{order_id}.
 // A missing shipment is returned as an empty response (unset shipment), not an
 // error, so callers can treat "no shipment yet" the same as the HTTP 404 path.
 func (s *Server) GetShipmentByOrder(

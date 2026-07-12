@@ -264,11 +264,16 @@ func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.
 	// Shipping v1 routes — Variant A edge naming (see api-naming-convention.md)
 
 	// Public: customer-facing tracking + estimation (no auth required)
+	r.GET("/shipping/v1/public/shipments/track", handler.TrackShipment)
+	r.GET("/shipping/v1/public/shipments/estimate", handler.EstimateShipping)
+	// Deprecated aliases — pre-v3 verb paths kept for one release so older SPA
+	// bundles survive the rollout. Remove after the v3 rollout; see homelab ADR-017.
 	r.GET("/shipping/v1/public/track", handler.TrackShipment)
 	r.GET("/shipping/v1/public/estimate", handler.EstimateShipping)
 
-	// Internal: called by order-service for order-detail aggregation. Not on gateway.
-	r.GET("/shipping/v1/internal/orders/:orderId", handler.GetShipmentByOrder)
+	// Internal: HTTP twin of the gRPC GetShipmentByOrder (order-service calls
+	// gRPC; this path has no live HTTP caller). Not on gateway.
+	r.GET("/shipping/v1/internal/shipments/orders/:orderId", handler.GetShipmentByOrder)
 
 	return &http.Server{
 		Addr:              ":" + cfg.Service.Port,

@@ -25,11 +25,11 @@ type Quote struct {
 }
 
 type EstimateResponse struct {
-	Origin        string  `json:"origin"`
-	Destination   string  `json:"destination"`
-	Weight        float64 `json:"weight"`
-	EstimatedCost float64 `json:"estimated_cost"`
-	EstimatedDays int     `json:"estimated_days"`
-	Currency      string  `json:"currency"`
-	Carrier       string  `json:"carrier"`
+	Origin           string  `json:"origin"`
+	Destination      string  `json:"destination"`
+	Weight           float64 `json:"weight"`
+	EstimatedCost    float64 `json:"estimated_cost"`
+	EstimatedDays    int     `json:"estimated_days"`
+	Currency         string  `json:"currency"`
+	Carrier          string  `json:"carrier"`
 }

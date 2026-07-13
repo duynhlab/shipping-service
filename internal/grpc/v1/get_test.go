@@ -93,3 +93,12 @@ func TestServer_GetShipmentByOrder(t *testing.T) {
 		}
 	})
 }
+
+func (s *getStub) GetQuote(_ context.Context, method, region string) (*domain.Quote, error) {
+	// Canned answer: the stub must not couple unrelated tests to the real
+	// logic service's dependencies.
+	if method == "standard" && region == "VN" {
+		return &domain.Quote{FeeMinor: 300, ETADays: 5}, nil
+	}
+	return nil, logicv1.ErrUnknownQuoteInput
+}

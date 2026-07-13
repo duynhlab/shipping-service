@@ -93,3 +93,7 @@ func TestServer_GetShipmentByOrder(t *testing.T) {
 		}
 	})
 }
+
+func (s *getStub) GetQuote(_ context.Context, method, region string) (*domain.Quote, error) {
+	return (&logicv1.ShippingService{}).GetQuote(context.Background(), method, region)
+}

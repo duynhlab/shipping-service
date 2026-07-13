@@ -103,3 +103,7 @@ func TestServer_CancelShipment(t *testing.T) {
 		}
 	})
 }
+
+func (s *stubShipmentSvc) GetQuote(_ context.Context, method, region string) (*domain.Quote, error) {
+	return (&logicv1.ShippingService{}).GetQuote(context.Background(), method, region)
+}

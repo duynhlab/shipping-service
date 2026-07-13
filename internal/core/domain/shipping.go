@@ -17,12 +17,19 @@ type EstimateRequest struct {
 	Weight      float64 `json:"weight" binding:"required"`
 }
 
+// Quote is the GetQuote answer (RFC-0015 P3): the shipping fee for a
+// method × region pair, in int64 minor units, plus an indicative ETA.
+type Quote struct {
+	FeeMinor int64
+	ETADays  int32
+}
+
 type EstimateResponse struct {
-	Origin           string  `json:"origin"`
-	Destination      string  `json:"destination"`
-	Weight           float64 `json:"weight"`
-	EstimatedCost    float64 `json:"estimated_cost"`
-	EstimatedDays    int     `json:"estimated_days"`
-	Currency         string  `json:"currency"`
-	Carrier          string  `json:"carrier"`
+	Origin        string  `json:"origin"`
+	Destination   string  `json:"destination"`
+	Weight        float64 `json:"weight"`
+	EstimatedCost float64 `json:"estimated_cost"`
+	EstimatedDays int     `json:"estimated_days"`
+	Currency      string  `json:"currency"`
+	Carrier       string  `json:"carrier"`
 }

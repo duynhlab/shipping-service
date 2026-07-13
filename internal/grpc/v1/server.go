@@ -21,6 +21,7 @@ type ShipmentService interface {
 	GetShipmentByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error)
 	CreateShipment(ctx context.Context, orderID string) (*domain.Shipment, error)
 	CancelShipment(ctx context.Context, orderID string) error
+	GetQuote(ctx context.Context, method, region string) (*domain.Quote, error)
 }
 
 // Server implements shippingv1.ShippingServiceServer.
@@ -106,4 +107,17 @@ func toProto(s *domain.Shipment) *shippingv1.Shipment {
 		CreatedAt:         s.CreatedAt,
 		UpdatedAt:         s.UpdatedAt,
 	}
+}
+
+// GetQuote prices a shipping method for a destination region (RFC-0015 P3).
+// Unknown method/region answers INVALID_ARGUMENT so checkout can 400 it.
+func (s *Server) GetQuote(ctx context.Context, req *shippingv1.GetQuoteRequest) (*shippingv1.GetQuoteResponse, error) {
+	q, err := s.svc.GetQuote(ctx, req.GetMethod(), req.GetRegion())
+	if err != nil {
+		if errors.Is(err, logicv1.ErrUnknownQuoteInput) {
+			return nil, status.Error(codes.InvalidArgument, "unknown shipping method or region")
+		}
+		return nil, status.Error(codes.Internal, "quote failed")
+	}
+	return &shippingv1.GetQuoteResponse{FeeMinor: q.FeeMinor, EtaDays: q.ETADays}, nil
 }

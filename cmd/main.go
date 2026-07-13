@@ -223,7 +223,7 @@ func startGRPC(cfg *config.Config, logger *zap.Logger, svc *logicv1.ShippingServ
 		return nil
 	}
 
-	grpcSrv, _ := grpcx.NewServer()
+	grpcSrv, _ := grpcx.NewServer(logger)
 	shippingv1.RegisterShippingServiceServer(grpcSrv, grpcv1.NewServer(svc))
 
 	go func() {

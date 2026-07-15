@@ -26,12 +26,8 @@ func NewHandler(service *logicv1.ShippingService) *Handler {
 }
 
 func (h *Handler) TrackShipment(c *gin.Context) {
-	ctx, span := middleware.StartSpan(c.Request.Context(), "http.request", trace.WithAttributes(
-		attribute.String("layer", "web"),
-		attribute.String("method", c.Request.Method),
-		attribute.String("path", c.Request.URL.Path),
-	))
-	defer span.End()
+	ctx := c.Request.Context()
+	span := trace.SpanFromContext(ctx)
 
 	zapLogger := middleware.GetLoggerFromGinContext(c)
 
@@ -70,12 +66,8 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 // EstimateShipping handles GET /shipping/v1/public/shipments/estimate
 // Query params: origin, destination, weight
 func (h *Handler) EstimateShipping(c *gin.Context) {
-	ctx, span := middleware.StartSpan(c.Request.Context(), "http.request", trace.WithAttributes(
-		attribute.String("layer", "web"),
-		attribute.String("method", c.Request.Method),
-		attribute.String("path", c.Request.URL.Path),
-	))
-	defer span.End()
+	ctx := c.Request.Context()
+	span := trace.SpanFromContext(ctx)
 
 	zapLogger := middleware.GetLoggerFromGinContext(c)
 
@@ -122,12 +114,8 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 // GetShipmentByOrder handles GET /shipping/v1/internal/shipments/orders/:orderId
 // Returns shipment info for a given order ID
 func (h *Handler) GetShipmentByOrder(c *gin.Context) {
-	ctx, span := middleware.StartSpan(c.Request.Context(), "http.request", trace.WithAttributes(
-		attribute.String("layer", "web"),
-		attribute.String("method", c.Request.Method),
-		attribute.String("path", c.Request.URL.Path),
-	))
-	defer span.End()
+	ctx := c.Request.Context()
+	span := trace.SpanFromContext(ctx)
 
 	zapLogger := middleware.GetLoggerFromGinContext(c)
 

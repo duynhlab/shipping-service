@@ -33,6 +33,7 @@ func (s *ShippingService) TrackShipment(ctx context.Context, trackingNumber stri
 	if err != nil {
 		if errors.Is(err, domain.ErrShipmentNotFound) {
 			span.SetAttributes(attribute.Bool("shipment.found", false))
+			recordShipmentLookup(ctx, lookupTrack, false)
 			return nil, ErrShipmentNotFound
 		}
 		span.RecordError(err)
@@ -45,6 +46,7 @@ func (s *ShippingService) TrackShipment(ctx context.Context, trackingNumber stri
 		attribute.String("shipment.status", shipment.Status),
 		attribute.String("shipment.carrier", shipment.Carrier),
 	)
+	recordShipmentLookup(ctx, lookupTrack, true)
 
 	return shipment, nil
 }
@@ -111,6 +113,7 @@ func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID stri
 	// treat it as "not found" here instead of letting Postgres raise a cast error.
 	if _, err := strconv.Atoi(orderID); err != nil {
 		span.SetAttributes(attribute.Bool("shipment.found", false))
+		recordShipmentLookup(ctx, lookupByOrder, false)
 		return nil, ErrShipmentNotFound
 	}
 
@@ -118,6 +121,7 @@ func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID stri
 	if err != nil {
 		if errors.Is(err, domain.ErrShipmentNotFound) {
 			span.SetAttributes(attribute.Bool("shipment.found", false))
+			recordShipmentLookup(ctx, lookupByOrder, false)
 			return nil, ErrShipmentNotFound
 		}
 		span.RecordError(err)
@@ -129,6 +133,7 @@ func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID stri
 		attribute.Int("shipment.id", shipment.ID),
 		attribute.String("shipment.status", shipment.Status),
 	)
+	recordShipmentLookup(ctx, lookupByOrder, true)
 
 	return shipment, nil
 }
@@ -149,12 +154,14 @@ func (s *ShippingService) CreateShipment(ctx context.Context, orderID string) (*
 	// caller gets a clean InvalidArgument instead of a DB cast error.
 	if _, err := strconv.Atoi(orderID); err != nil {
 		span.SetAttributes(attribute.Bool("order_id.valid", false))
+		recordShipmentCreated(ctx, outcomeInvalidOrder)
 		return nil, ErrInvalidOrderID
 	}
 
 	shipment, err := s.repo.CreateShipment(ctx, orderID)
 	if err != nil {
 		span.RecordError(err)
+		recordShipmentCreated(ctx, outcomeError)
 		return nil, err
 	}
 
@@ -162,6 +169,7 @@ func (s *ShippingService) CreateShipment(ctx context.Context, orderID string) (*
 		attribute.Int("shipment.id", shipment.ID),
 		attribute.String("shipment.tracking_number", shipment.TrackingNumber),
 	)
+	recordShipmentCreated(ctx, outcomeOK)
 	return shipment, nil
 }
 
@@ -177,7 +185,9 @@ func (s *ShippingService) CancelShipment(ctx context.Context, orderID string) er
 
 	if err := s.repo.CancelShipment(ctx, orderID); err != nil {
 		span.RecordError(err)
+		recordShipmentCancelled(ctx, outcomeError)
 		return err
 	}
+	recordShipmentCancelled(ctx, outcomeOK)
 	return nil
 }

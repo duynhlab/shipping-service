@@ -4,6 +4,23 @@ Instructions for AI agents and human contributors working in this repository.
 Read it before making changes; keep edits surgical and consistent with what is
 already here.
 
+## Authority and scope
+
+This repository implements the service. It does **not** define the contract.
+
+- **Canonical contract:** [`homelab/docs/api/shipping.md`](https://github.com/duynhlab/homelab/blob/main/docs/api/shipping.md)
+- **Shared API rules:** [`homelab/docs/api/api.md`](https://github.com/duynhlab/homelab/blob/main/docs/api/api.md)
+
+Implement against those files. When this repository and the contract disagree,
+**stop and classify the mismatch** using
+[Resolving a mismatch](https://github.com/duynhlab/homelab/blob/main/docs/api/README.md#resolving-a-mismatch)
+before changing either side. One class — an implementation that violates the
+intended contract — **blocks the release tag**.
+
+No route, RPC, payload or error inventory belongs in this file. Manifests,
+gateway routing, NetworkPolicy and platform observability belong to
+[duynhlab/homelab](https://github.com/duynhlab/homelab).
+
 ## Contribution workflow
 
 - Never commit or push to `main`. Branch first, then open a PR.
@@ -36,102 +53,115 @@ already here.
   `**/db/migrations/**`, `**/core/repository/**` are coverage-excluded;
   everything else counts.
 
-## Project overview
-
-Shipping microservice for the `duynhlab` platform. Manages shipment tracking,
-cost estimation, and delivery lookup. Go module
-`github.com/duynhlab/shipping-service`. It serves an HTTP API on `:8080` and a
-gRPC server (`shipping.v1.ShippingService`) on `:9090` consumed by
-`order-service`.
-
-## Repository layout
-
-```
-shipping-service/
-├── cmd/main.go                       # Wires HTTP (:8080) + gRPC (:9090), graceful shutdown
-├── config/config.go                  # Env-driven configuration + validation
-├── db/migrations/                    # golang-migrate SQL (sql/000001_*.up.sql) + embed.go
-├── internal/
-│   ├── web/v1/handler.go             # HTTP handlers, JSON binding, DTO mapping
-│   ├── logic/v1/                     # Business rules (service.go, errors.go, tests)
-│   ├── core/
-│   │   ├── database.go               # pgx/v5 pool (pooler-safe: simple protocol)
-│   │   ├── domain/                   # Shipment model, repository interface, errors
-│   │   └── repository/postgres/      # ShipmentRepository SQL implementation
-│   └── grpc/v1/server.go             # shipping.v1.ShippingService server (adapter over logic)
-└── middleware/                       # tracing, logging, prometheus, profiling, resource
-```
-
 ## Build, test, lint
 
+These are the commands CI runs, so a green local run means a green pipeline.
+
 ```bash
-GOTOOLCHAIN=auto go build ./...   # compile (go.mod pins go 1.26.2)
-GOTOOLCHAIN=auto go vet ./...     # vet
-GOTOOLCHAIN=auto go test ./...    # tests
-golangci-lint run                 # lint — must pass
+go build ./...
+go vet ./...
+go test -race ./...
+go test -tags=integration ./internal/core/repository/...   # needs Docker (testcontainers)
+golangci-lint run
 ```
 
-### Testing conventions
+Local development against an unreleased `pkg`: `pkg` is one module per package,
+so its root has no `go.mod` and a single `replace github.com/duynhlab/pkg` can no
+longer resolve. Use one commented `replace` line per module — the trailer in
+`go.mod` shows the shape, and
+[`docs/api/pkg.md`](https://github.com/duynhlab/homelab/blob/main/docs/api/pkg.md)
+explains why.
 
-- **Unit tests** — stdlib `testing` only (no testify/gomock), hand-written mocks for
-  interfaces, table-driven subtests, in `*_test.go` next to the code: Web (`httptest`),
-  Logic (pure — mock the repo), gRPC (call handlers directly), `middleware`, `config`. Run
-  with `go test ./...` (no Docker).
-- **Integration tests** — `internal/core/repository` is tested against a **real Postgres**
-  via testcontainers, build-tagged `//go:build integration` (the default `go build`/`go test`
-  skip them, so the binary never links testcontainers). Run locally with Docker:
-  `go test -tags=integration ./internal/core/repository/...`. CI wires `integration: true`
-  (go-check) + `integration-coverage: true` (sonar), and merges both coverage profiles into
-  the ≥ 80% new-code gate.
-- **Before pushing**, both the unit run *and* the integration suite must be green locally —
-  green unit ≠ green CI (CI also runs integration with Docker).
+## Architecture boundaries
 
-## Conventions
+**3-layer, dependencies flow one way only: transport → logic → core.**
 
-- **3-layer architecture**, dependencies flow one way only: `web → logic →
-  core`. Web handles HTTP/JSON/validation and delegates; Logic holds business
-  rules and calls repository interfaces (no SQL, no `gin`, no
-  `database.GetPool()`); Core owns domain models, the repository interface, and
-  the Postgres implementation. Core imports nothing from Web or Logic.
+- **Transport** — `internal/web/v1/` (HTTP) and `internal/grpc/v1/` (gRPC).
+  Validate, map, delegate. Neither may touch the database or hold business rules.
+- **Logic** — `internal/logic/v1/` holds the rules, including the quote rate
+  table, and calls repository interfaces. No SQL, no transport types.
+- **Core** — `internal/core/` owns the domain model, the repository interface and
+  the Postgres implementation. It imports nothing from transport or logic.
 
-  ```mermaid
-  flowchart LR
-      Web["web/v1<br/>HTTP handlers"] --> Logic["logic/v1<br/>business rules"]
-      gRPC["grpc/v1<br/>transport adapter"] --> Logic
-      Logic --> Core["core<br/>domain + repository"]
-      Core --> DB[("PostgreSQL<br/>pgx/v5")]
-  ```
+Both transports always run. Observability is wired once through
+`github.com/duynhlab/pkg/obsx`; the pool comes from `github.com/duynhlab/pkg/dbx`;
+the gRPC server is built by `github.com/duynhlab/pkg/grpcx`; HTTP responses use the
+shared `github.com/duynhlab/pkg/httpx` envelope.
 
-- **gRPC SERVER**: this service exposes `shipping.v1.ShippingService` on `:9090`
-  (`GRPC_PORT`). The only method is `GetShipmentByOrder`, which mirrors
-  `GET /shipping/v1/internal/shipments/orders/:orderId` and is called by `order-service`
-  on the order-details path. gRPC is the official east-west transport, so the
-  server always runs; HTTP `:8080` is unaffected. Bootstrap via shared
-  `github.com/duynhlab/pkg/grpcx` (`grpcx.NewServer` provides OpenTelemetry
-  interceptors, health, reflection). Proto lives in
-  `github.com/duynhlab/pkg/proto/shipping/v1`.
-- **Observability** via shared `github.com/duynhlab/pkg/obsx`:
-  - gRPC RED metrics (`rpc_server_*`) are exported through the global OTel
-    MeterProvider onto the single `/metrics` handler (shared registry, scraped
-    by the platform ServiceMonitor — no separate metrics port). `SetupMetrics()`
-    runs before `grpcx.NewServer`.
-  - Logging uses `obsx.TraceIDFromContext` so the log `trace_id` matches the
-    active span.
-  - HTTP middleware chain order is `tracing → logging → metrics`.
-- **Diagrams**: Mermaid only. Never ASCII art.
+## Invariants
+
+Rules an implementer can violate at the keyboard.
+
+- **Two money models, and they must never be mixed.** The **quote** is `int64`
+  minor units. The **estimate** is `float64` dollars. They share no code path, and
+  the estimate is an authority for nothing — it exists for display. Reusing one's
+  arithmetic in the other silently changes what a customer is charged.
+- **Idempotency lives in SQL, not the handler.** Creating a shipment is an upsert
+  whose conflict branch is a no-op touch that still `RETURN`s the row, so a
+  concurrent duplicate gets the existing shipment atomically. Replacing it with a
+  select-then-insert reintroduces the race the unique constraint exists to close.
+- **Compensation must succeed when there is nothing to cancel.** Cancelling a
+  shipment that does not exist, or is already cancelled, affects zero rows and is
+  still a success. A saga retries compensation; making it an error turns a
+  successful rollback into a stuck workflow.
+- **A missing shipment is not a gRPC error.** East-west, absence is an empty
+  response; over HTTP the same absence is a 404. Do not "fix" the gRPC side into
+  a `NotFound` status — a caller distinguishing absent from broken depends on it.
+- **A non-numeric order id is rejected before Postgres.** Letting it reach the
+  database raises a cast error, which surfaces as an internal failure rather than
+  the clean "not found" or invalid-argument the caller should see.
+- **`seed` is development-only** and refuses to run in production. It is invoked
+  explicitly — never from `migrate` or the serve path — and it must not use
+  golang-migrate: seeds are idempotent statements and must not share the
+  `schema_migrations` version table.
+- **Pooler-safe database settings live in `pkg/dbx`, not here.** Simple protocol
+  and disabled statement caches are required by the pooler. The seed path
+  re-asserts the execution mode explicitly because it runs multi-statement files.
+  One DSN serves both the app and migrations; pool sizing is applied to the
+  parsed config, never to the DSN, because the driver migrations use rejects
+  `pool_*` parameters.
+- **Graceful-shutdown ordering is load-bearing:** flag not-ready → readiness drain
+  delay → HTTP shutdown → gRPC `GracefulStop` → pool close → OTel shutdown last,
+  so pending spans, metrics and logs still flush.
+- **Metric labels are bounded; no ids.** No order ids, no tracking numbers, no
+  free-form text. An idempotent replay is deliberately counted as a success, and
+  infrastructure failures are deliberately excluded from the lookup counter.
+- **Probe suppression is one contract across logs and traces.** Successful
+  `/health` and `/ready` requests are excluded from spans *and* access logs
+  through the same skip list; a **failing** probe is still recorded. 4xx logs at
+  warn, 5xx at error, and a trace id is only claimed when the span really has one.
+
+## Repository map
+
+- `cmd/main.go` — wiring, subcommand dispatch, HTTP + gRPC bootstrap, graceful shutdown
+- `config/config.go` — env config, `Validate()`, `BuildDSN()`
+- `db/migrations/` — forward-only golang-migrate SQL, embedded
+- `db/seed/` — development-only demo seed, embedded
+- `internal/web/v1/` — HTTP adapter
+- `internal/grpc/v1/` — gRPC adapter and proto mapping
+- `internal/logic/v1/` — service rules, the quote rate table, sentinel errors, metrics
+- `internal/core/` — database wiring, domain model, repository interface and Postgres implementation
+- `middleware/` — tracing and logging only
 
 ## Gotchas
 
-- The gRPC server (`internal/grpc/v1/server.go`) is a transport peer of the Web
-  layer: it calls the same logic service and must never touch the database
-  directly or embed business rules.
-- A missing shipment is **not** an error. `GetShipmentByOrder` returns an empty
-  response (unset shipment) when logic reports `ErrShipmentNotFound`, so callers
-  treat "no shipment yet" like the HTTP 404 path.
-- Kyverno admission rejects bad images: pin `ghcr.io/duynhlab/<service>:<sha>`
-  or `:vX.Y.Z`, never `:latest`.
-- Migrations run via golang-migrate v4.19.1, embedded through `db/migrations/embed.go`
-  (`embed.FS`) and applied by `pkg/migratex` from the `migrate` subcommand. The init
-  container reuses the app image (`args: ["migrate"]`) — no separate migration image.
-  Migrations are forward-only `*.up.sql` files.
-```
+- Kyverno admission rejects bad images. The published image is
+  `ghcr.io/duynhlab/shipping-service/shipping-service:<tag>` — the repository path
+  repeats, and the tag carries no `v` prefix. There is no separate migration
+  image; the init container reuses the app image with `args: ["migrate"]`. Never
+  `:latest`.
+- Metrics leave over OTLP. There is no scrape endpoint and nothing scrapes this
+  service.
+- Migrations run against the direct database host, never the pooler — DDL through
+  a transaction pooler is unsafe.
+
+## API change synchronization
+
+An API change is not done when the code compiles.
+
+- The contract in homelab and this repository move **together** — same change,
+  and either the same PR pair or an immediate follow-up.
+- Behaviour that is designed but not deployed is marked **`Planned`** in the
+  contract; it is never described as current.
+- A material mismatch between the contract and this implementation **blocks the
+  release tag** until it is reconciled or explicitly accepted.

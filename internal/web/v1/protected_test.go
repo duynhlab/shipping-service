@@ -115,3 +115,30 @@ func TestGetShipment(t *testing.T) {
 		t.Fatalf("want 400, got %d", w.Code)
 	}
 }
+
+func TestRegisterProtectedRoutesRealChain(t *testing.T) {
+	verifier, err := authmw.NewVerifier(authmw.Config{
+		Issuer:   "http://localhost:8081/realms/duynhlab-staff",
+		Audience: "duynhlab-platform",
+	})
+	if err != nil {
+		t.Fatalf("verifier: %v", err)
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	RegisterProtectedRoutes(r, NewHandler(logicv1.NewShippingService(&listRepo{})), verifier)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/shipping/v1/protected/shipments", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("tokenless: want 401 from the real chain, got %d", w.Code)
+	}
+}
+
+func TestListShipmentsRepoError(t *testing.T) {
+	r := operatorEngine(t, &listRepo{err: context.DeadlineExceeded}, backofficeRole)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/shipping/v1/protected/shipments", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", w.Code)
+	}
+}

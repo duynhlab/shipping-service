@@ -11,8 +11,10 @@ import (
 // mockShipmentRepository is a configurable test double for
 // domain.ShipmentRepository.
 type mockShipmentRepository struct {
-	shipment *domain.Shipment
-	err      error
+	listErr    error
+	getByIDErr error
+	shipment   *domain.Shipment
+	err        error
 
 	createResult *domain.Shipment
 	createErr    error
@@ -40,10 +42,13 @@ func (m *mockShipmentRepository) CancelShipment(_ context.Context, orderID strin
 }
 
 func (m *mockShipmentRepository) ListShipments(_ context.Context, _ string, _, _ int) ([]domain.Shipment, int, error) {
-	return nil, 0, nil
+	return nil, 0, m.listErr
 }
 
 func (m *mockShipmentRepository) GetByID(_ context.Context, _ int) (*domain.Shipment, error) {
+	if m.getByIDErr != nil {
+		return nil, m.getByIDErr
+	}
 	return nil, domain.ErrShipmentNotFound
 }
 
@@ -242,5 +247,34 @@ func TestGetShipmentByOrderID(t *testing.T) {
 				t.Errorf("GetShipmentByOrderID() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestListShipmentsPassThrough(t *testing.T) {
+	repo := &mockShipmentRepository{}
+	svc := NewShippingService(repo)
+	if _, _, err := svc.ListShipments(context.Background(), "pending", 20, 0); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+}
+
+func TestGetShipmentMapsNotFound(t *testing.T) {
+	svc := NewShippingService(&mockShipmentRepository{})
+	if _, err := svc.GetShipment(context.Background(), 999); !errors.Is(err, ErrShipmentNotFound) {
+		t.Fatalf("want ErrShipmentNotFound, got %v", err)
+	}
+}
+
+func TestProtectedReadsWrapRepoErrors(t *testing.T) {
+	boom := errors.New("pg down")
+	repo := &mockShipmentRepository{}
+	repo.listErr = boom
+	svc := NewShippingService(repo)
+	if _, _, err := svc.ListShipments(context.Background(), "", 20, 0); !errors.Is(err, boom) {
+		t.Fatalf("list error not preserved: %v", err)
+	}
+	repo.getByIDErr = boom
+	if _, err := svc.GetShipment(context.Background(), 1); !errors.Is(err, boom) {
+		t.Fatalf("get error not preserved: %v", err)
 	}
 }

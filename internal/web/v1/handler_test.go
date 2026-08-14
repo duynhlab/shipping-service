@@ -31,6 +31,14 @@ func (m *mockShipmentRepo) CreateShipment(_ context.Context, _ string) (*domain.
 }
 func (m *mockShipmentRepo) CancelShipment(_ context.Context, _ string) error { return m.err }
 
+func (m *mockShipmentRepo) ListShipments(_ context.Context, _ string, _, _ int) ([]domain.Shipment, int, error) {
+	return nil, 0, nil
+}
+
+func (m *mockShipmentRepo) GetByID(_ context.Context, _ int) (*domain.Shipment, error) {
+	return nil, domain.ErrShipmentNotFound
+}
+
 func newHandler(repo domain.ShipmentRepository) *Handler {
 	return NewHandler(logicv1.NewShippingService(repo))
 }

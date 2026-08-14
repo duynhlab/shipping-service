@@ -39,6 +39,14 @@ func (m *mockShipmentRepository) CancelShipment(_ context.Context, orderID strin
 	return m.cancelErr
 }
 
+func (m *mockShipmentRepository) ListShipments(_ context.Context, _ string, _, _ int) ([]domain.Shipment, int, error) {
+	return nil, 0, nil
+}
+
+func (m *mockShipmentRepository) GetByID(_ context.Context, _ int) (*domain.Shipment, error) {
+	return nil, domain.ErrShipmentNotFound
+}
+
 func TestEstimateShipping(t *testing.T) {
 	service := NewShippingService(nil)
 	ctx := context.Background()

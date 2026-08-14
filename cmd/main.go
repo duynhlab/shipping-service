@@ -35,6 +35,8 @@ import (
 	grpcv1 "github.com/duynhlab/shipping-service/internal/grpc/v1"
 	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
 	webv1 "github.com/duynhlab/shipping-service/internal/web/v1"
+
+	"github.com/duynhlab/pkg/authmw"
 	"github.com/duynhlab/shipping-service/middleware"
 )
 
@@ -127,11 +129,22 @@ func main() {
 	shippingService := logicv1.NewShippingService(shippingRepo)
 	shippingHandler := webv1.NewHandler(shippingService)
 
+	// Protected Backoffice reads (RFC-0023 slice A): shipping's first authmw
+	// wiring, against the STAFF realm (ADR-050). Fail fast on a bad config.
+	staffVerifier, err := authmw.NewVerifier(authmw.Config{
+		Issuer:   cfg.OIDCStaffIssuer,
+		Audience: cfg.OIDCAudience,
+		JWKSURL:  cfg.OIDCStaffJWKSURL,
+	})
+	if err != nil {
+		logger.Fatal("staff JWKS verifier init failed", zap.Error(err))
+	}
+
 	// Optional internal gRPC server (Phase 1 pilot). HTTP :8080 is unaffected.
 	grpcSrv := startGRPC(cfg, logger, shippingService)
 
 	var isShuttingDown atomic.Bool
-	srv := setupServer(cfg, logger, &isShuttingDown, shippingHandler, pool)
+	srv := setupServer(cfg, logger, &isShuttingDown, shippingHandler, pool, staffVerifier)
 	runGracefulShutdown(cfg, srv, grpcSrv, tp, pool, logger, &isShuttingDown)
 }
 
@@ -238,7 +251,7 @@ func startGRPC(cfg *config.Config, logger *zap.Logger, svc *logicv1.ShippingServ
 
 func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.Bool, handler *webv1.Handler, pool interface {
 	Ping(context.Context) error
-}) *http.Server {
+}, staffVerifier *authmw.Verifier) *http.Server {
 	r := gin.Default()
 
 	r.Use(middleware.TracingMiddleware())
@@ -274,6 +287,10 @@ func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.
 	// Internal: HTTP twin of the gRPC GetShipmentByOrder (order-service calls
 	// gRPC; this path has no live HTTP caller). Not on gateway.
 	r.GET("/shipping/v1/internal/shipments/orders/:orderId", handler.GetShipmentByOrder)
+
+	// Protected: the Backoffice's cross-customer reads (RFC-0023), staff-realm
+	// verified + role-gated in-service; the edge repeats the JWT check coarsely.
+	webv1.RegisterProtectedRoutes(r, handler, staffVerifier)
 
 	return &http.Server{
 		Addr:              ":" + cfg.Service.Port,

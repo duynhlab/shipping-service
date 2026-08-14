@@ -15,4 +15,13 @@ type ShipmentRepository interface {
 	// for CreateShipment). Idempotent: a no-op when there is no shipment or it is
 	// already cancelled.
 	CancelShipment(ctx context.Context, orderID string) error
+
+	// ListShipments returns one operator page (newest first) plus the unpaged
+	// total; status narrows to one as-built value when set (RFC-0023 slice A —
+	// the Backoffice's cross-customer view; there is no owner scope on
+	// shipments to begin with).
+	ListShipments(ctx context.Context, status string, limit, offset int) ([]Shipment, int, error)
+
+	// GetByID returns one shipment by primary key for the operator case view.
+	GetByID(ctx context.Context, id int) (*Shipment, error)
 }

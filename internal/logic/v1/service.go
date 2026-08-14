@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/duynhlab/shipping-service/internal/core/domain"
@@ -190,4 +191,27 @@ func (s *ShippingService) CancelShipment(ctx context.Context, orderID string) er
 	}
 	recordShipmentCancelled(ctx, outcomeOK)
 	return nil
+}
+
+// ListShipments serves the Backoffice's cross-customer view (RFC-0023 slice
+// A): one page, newest first, optional as-built status filter. Shipments have
+// no owner scope, so this is a plain paginated read.
+func (s *ShippingService) ListShipments(ctx context.Context, status string, limit, offset int) ([]domain.Shipment, int, error) {
+	items, total, err := s.repo.ListShipments(ctx, status, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list shipments: %w", err)
+	}
+	return items, total, nil
+}
+
+// GetShipment returns one shipment by id for the operator case view.
+func (s *ShippingService) GetShipment(ctx context.Context, id int) (*domain.Shipment, error) {
+	shipment, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrShipmentNotFound) {
+			return nil, ErrShipmentNotFound
+		}
+		return nil, fmt.Errorf("get shipment: %w", err)
+	}
+	return shipment, nil
 }

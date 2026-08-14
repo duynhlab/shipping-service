@@ -151,3 +151,65 @@ func (r *ShipmentRepository) scanShipment(row pgx.Row) (*domain.Shipment, error)
 
 	return shipment, nil
 }
+
+// ListShipments returns one operator page, newest first, plus the unpaged
+// total for the same filter (RFC-0023 protected reads).
+func (r *ShipmentRepository) ListShipments(ctx context.Context, status string, limit, offset int) ([]domain.Shipment, int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	where := ""
+	args := []any{}
+	if status != "" {
+		args = append(args, status)
+		where = " WHERE status = $1"
+	}
+
+	var total int
+	if err := r.db.QueryRow(ctx, "SELECT count(*) FROM shipments"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count shipments: %w", err)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, order_id, tracking_number, carrier, status, estimated_delivery, created_at, updated_at
+		FROM shipments%s
+		ORDER BY id DESC
+		LIMIT $%d OFFSET $%d`, where, len(args)+1, len(args)+2)
+	rows, err := r.db.Query(ctx, query, append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list shipments: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]domain.Shipment, 0)
+	for rows.Next() {
+		s, err := r.scanShipment(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan shipment: %w", err)
+		}
+		items = append(items, *s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate shipments: %w", err)
+	}
+	return items, total, nil
+}
+
+// GetByID returns one shipment by primary key (operator case view).
+func (r *ShipmentRepository) GetByID(ctx context.Context, id int) (*domain.Shipment, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	row := r.db.QueryRow(ctx, `
+		SELECT id, order_id, tracking_number, carrier, status, estimated_delivery, created_at, updated_at
+		FROM shipments
+		WHERE id = $1`, id)
+	shipment, err := r.scanShipment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("get shipment %d: %w", id, domain.ErrShipmentNotFound)
+		}
+		return nil, fmt.Errorf("query shipment %d: %w", id, err)
+	}
+	return shipment, nil
+}

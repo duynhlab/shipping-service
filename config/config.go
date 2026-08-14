@@ -36,13 +36,19 @@ const defaultServiceName = "unknown"
 
 // Config holds all configuration for a microservice
 type Config struct {
-	Service         ServiceConfig   // Service-specific settings (port, name, version)
-	GRPC            GRPCConfig      // Optional internal gRPC server (Phase 1 pilot)
-	Tracing         TracingConfig   // OpenTelemetry/Tempo configuration
-	Profiling       ProfilingConfig // Pyroscope continuous profiling
-	Logging         LoggingConfig   // Structured logging (Zap)
-	Database        DatabaseConfig  // PostgreSQL database configuration
-	ShutdownTimeout int             // Graceful shutdown timeout in seconds - from SHUTDOWN_TIMEOUT env (default: 10)
+	Service ServiceConfig // Service-specific settings (port, name, version)
+
+	// OIDC verification for the protected Backoffice surface (RFC-0023 +
+	// ADR-050): the WORKFORCE realm issuer. Mirrors inventory's env contract.
+	OIDCStaffIssuer  string          // OIDC_STAFF_ISSUER (iss, exact match)
+	OIDCAudience     string          // OIDC_AUDIENCE (aud containment)
+	OIDCStaffJWKSURL string          // OIDC_STAFF_JWKS_URL (empty = derived from issuer)
+	GRPC             GRPCConfig      // Optional internal gRPC server (Phase 1 pilot)
+	Tracing          TracingConfig   // OpenTelemetry/Tempo configuration
+	Profiling        ProfilingConfig // Pyroscope continuous profiling
+	Logging          LoggingConfig   // Structured logging (Zap)
+	Database         DatabaseConfig  // PostgreSQL database configuration
+	ShutdownTimeout  int             // Graceful shutdown timeout in seconds - from SHUTDOWN_TIMEOUT env (default: 10)
 	// ReadinessDrainDelay: delay after failing readiness before shutting down the HTTP server.
 	// This gives Kubernetes/Service routing time to stop sending new traffic.
 	// From READINESS_DRAIN_DELAY env (default: 5s, max: 30s).
@@ -130,6 +136,9 @@ func Load() *Config {
 			Version: getEnv("VERSION", "dev"),
 			Env:     getEnv("ENV", "development"),
 		},
+		OIDCStaffIssuer:  getEnv("OIDC_STAFF_ISSUER", "https://id.duynh.me/realms/duynhlab-staff"),
+		OIDCAudience:     getEnv("OIDC_AUDIENCE", "duynhlab-platform"),
+		OIDCStaffJWKSURL: getEnv("OIDC_STAFF_JWKS_URL", ""),
 		GRPC: GRPCConfig{
 			Port: getEnv("GRPC_PORT", "9090"),
 		},

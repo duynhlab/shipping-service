@@ -32,7 +32,7 @@ func collectLookup(t *testing.T, reader sdkmetric.Reader) map[string]int64 {
 	forEachDataPoint(t, reader, "shipment.lookup.total", func(attrs attribute.Set, v int64) {
 		kind, _ := attrs.Value("kind")
 		found, _ := attrs.Value("found")
-		out[kind.AsString()+"/"+found.Emit()] = v
+		out[kind.AsString()+"/"+found.String()] = v
 	})
 	return out
 }

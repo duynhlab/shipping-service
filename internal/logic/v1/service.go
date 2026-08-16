@@ -6,11 +6,17 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/duynhlab/pkg/obsx"
 	"github.com/duynhlab/shipping-service/internal/core/domain"
-	"github.com/duynhlab/shipping-service/middleware"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// tracerScope is the OpenTelemetry instrumentation scope for this package's
+// spans: it names the CODE that creates them, which is why it is a package path
+// and not the service name. Deployment identity travels separately as
+// service.name on the Resource.
+const tracerScope = "github.com/duynhlab/shipping-service/internal/logic/v1"
 
 type ShippingService struct {
 	repo domain.ShipmentRepository
@@ -23,7 +29,7 @@ func NewShippingService(repo domain.ShipmentRepository) *ShippingService {
 }
 
 func (s *ShippingService) TrackShipment(ctx context.Context, trackingNumber string) (*domain.Shipment, error) {
-	ctx, span := middleware.StartSpan(ctx, "shipping.track", trace.WithAttributes(
+	ctx, span := obsx.StartSpan(ctx, tracerScope, "shipping.track", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("api.version", "v1"),
 		attribute.String("tracking.number", trackingNumber),
@@ -54,7 +60,7 @@ func (s *ShippingService) TrackShipment(ctx context.Context, trackingNumber stri
 
 // EstimateShipping calculates estimated shipping cost and delivery time
 func (s *ShippingService) EstimateShipping(ctx context.Context, origin, destination string, weight float64) (*domain.EstimateResponse, error) {
-	_, span := middleware.StartSpan(ctx, "shipping.estimate", trace.WithAttributes(
+	_, span := obsx.StartSpan(ctx, tracerScope, "shipping.estimate", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("api.version", "v1"),
 		attribute.String("origin", origin),
@@ -103,7 +109,7 @@ func (s *ShippingService) EstimateShipping(ctx context.Context, origin, destinat
 
 // GetShipmentByOrderID retrieves a shipment by its order ID
 func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error) {
-	ctx, span := middleware.StartSpan(ctx, "shipping.get_by_order", trace.WithAttributes(
+	ctx, span := obsx.StartSpan(ctx, tracerScope, "shipping.get_by_order", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("api.version", "v1"),
 		attribute.String("order_id", orderID),
@@ -144,7 +150,7 @@ func (s *ShippingService) GetShipmentByOrderID(ctx context.Context, orderID stri
 // destination address from the saga is not persisted yet (the shipment is keyed
 // by order); add a column when carrier integration needs it.
 func (s *ShippingService) CreateShipment(ctx context.Context, orderID string) (*domain.Shipment, error) {
-	ctx, span := middleware.StartSpan(ctx, "shipping.create", trace.WithAttributes(
+	ctx, span := obsx.StartSpan(ctx, tracerScope, "shipping.create", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("api.version", "v1"),
 		attribute.String("order_id", orderID),
@@ -177,7 +183,7 @@ func (s *ShippingService) CreateShipment(ctx context.Context, orderID string) (*
 // CancelShipment cancels the order's shipment (saga compensation for
 // CreateShipment). Idempotent by orderID.
 func (s *ShippingService) CancelShipment(ctx context.Context, orderID string) error {
-	ctx, span := middleware.StartSpan(ctx, "shipping.cancel", trace.WithAttributes(
+	ctx, span := obsx.StartSpan(ctx, tracerScope, "shipping.cancel", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("api.version", "v1"),
 		attribute.String("order_id", orderID),

@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/duynhlab/pkg/httpmw"
 	"github.com/duynhlab/pkg/httpx"
 	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
-	"github.com/duynhlab/shipping-service/middleware"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,7 +29,7 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 	ctx := c.Request.Context()
 	span := trace.SpanFromContext(ctx)
 
-	zapLogger := middleware.GetLoggerFromGinContext(c)
+	zapLogger := httpmw.LoggerFrom(c)
 
 	// Accept both tracking_number (preferred, per API docs) and trackingId (legacy)
 	trackingID := c.Query("tracking_number")
@@ -69,7 +69,7 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 	ctx := c.Request.Context()
 	span := trace.SpanFromContext(ctx)
 
-	zapLogger := middleware.GetLoggerFromGinContext(c)
+	zapLogger := httpmw.LoggerFrom(c)
 
 	origin := c.Query("origin")
 	destination := c.Query("destination")
@@ -117,7 +117,7 @@ func (h *Handler) GetShipmentByOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 	span := trace.SpanFromContext(ctx)
 
-	zapLogger := middleware.GetLoggerFromGinContext(c)
+	zapLogger := httpmw.LoggerFrom(c)
 
 	orderID := c.Param("orderId")
 	span.SetAttributes(attribute.String("order.id", orderID))

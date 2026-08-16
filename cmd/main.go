@@ -37,7 +37,7 @@ import (
 	webv1 "github.com/duynhlab/shipping-service/internal/web/v1"
 
 	"github.com/duynhlab/pkg/authmw"
-	"github.com/duynhlab/shipping-service/middleware"
+	"github.com/duynhlab/pkg/httpmw"
 )
 
 func main() {
@@ -80,7 +80,6 @@ func main() {
 	// The config is built once so the tracer scope name and the startup log
 	// reflect the values obsx actually uses.
 	otelCfg := obsx.ConfigFromEnv()
-	middleware.SetServiceName(otelCfg.ServiceName)
 	var tp interface{ Shutdown(context.Context) error }
 	obs, err := obsx.SetupObservability(context.Background(), otelCfg)
 	if err != nil {
@@ -144,7 +143,7 @@ func main() {
 	grpcSrv := startGRPC(cfg, logger, shippingService)
 
 	var isShuttingDown atomic.Bool
-	srv := setupServer(cfg, logger, &isShuttingDown, shippingHandler, pool, staffVerifier)
+	srv := setupServer(cfg, obsx.ConfigFromEnv().ServiceName, logger, &isShuttingDown, shippingHandler, pool, staffVerifier)
 	runGracefulShutdown(cfg, srv, grpcSrv, tp, pool, logger, &isShuttingDown)
 }
 
@@ -249,13 +248,13 @@ func startGRPC(cfg *config.Config, logger *zap.Logger, svc *logicv1.ShippingServ
 	return grpcSrv
 }
 
-func setupServer(cfg *config.Config, logger *zap.Logger, isShuttingDown *atomic.Bool, handler *webv1.Handler, pool interface {
+func setupServer(cfg *config.Config, otelServiceName string, logger *zap.Logger, isShuttingDown *atomic.Bool, handler *webv1.Handler, pool interface {
 	Ping(context.Context) error
 }, staffVerifier *authmw.Verifier) *http.Server {
 	r := gin.Default()
 
-	r.Use(middleware.TracingMiddleware())
-	r.Use(middleware.LoggingMiddleware(logger))
+	r.Use(httpmw.Tracing(otelServiceName))
+	r.Use(httpmw.Logging(logger))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

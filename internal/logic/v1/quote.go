@@ -8,8 +8,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/duynhlab/pkg/obsx"
 	"github.com/duynhlab/shipping-service/internal/core/domain"
-	"github.com/duynhlab/shipping-service/middleware"
 )
 
 // ErrUnknownQuoteInput — the method or region is not priceable; the gRPC
@@ -34,7 +34,7 @@ var quoteRates = map[string]struct {
 
 // GetQuote prices a shipping method for a destination region. Pure read.
 func (s *ShippingService) GetQuote(ctx context.Context, method, region string) (*domain.Quote, error) {
-	_, span := middleware.StartSpan(ctx, "shipping.quote", trace.WithAttributes(
+	_, span := obsx.StartSpan(ctx, tracerScope, "shipping.quote", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("quote.method", method),
 		attribute.String("quote.region", region),

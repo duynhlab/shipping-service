@@ -169,7 +169,10 @@ func TestGetShipmentByOrder_Success(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if decode(t, rec)["id"].(float64) != 5 {
+	// Checked assertion: a body that stopped carrying a numeric id should fail
+	// this test with the value it did carry, not panic somewhere in the runtime.
+	id, ok := decode(t, rec)["id"].(float64)
+	if !ok || id != 5 {
 		t.Errorf("id = %v, want 5", decode(t, rec)["id"])
 	}
 }

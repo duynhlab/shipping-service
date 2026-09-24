@@ -2,17 +2,17 @@ package v1
 
 import (
 	"errors"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
 
-	"github.com/duynhlab/pkg/httpmw"
 	"github.com/duynhlab/pkg/httpx"
+	"github.com/duynhlab/pkg/logger/slogx"
 	logicv1 "github.com/duynhlab/shipping-service/internal/logic/v1"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 type Handler struct {
@@ -28,9 +28,6 @@ func NewHandler(service *logicv1.ShippingService) *Handler {
 func (h *Handler) TrackShipment(c *gin.Context) {
 	ctx := c.Request.Context()
 	span := trace.SpanFromContext(ctx)
-
-	zapLogger := httpmw.LoggerFrom(c)
-
 	// Accept both tracking_number (preferred, per API docs) and trackingId (legacy)
 	trackingID := c.Query("tracking_number")
 	if trackingID == "" {
@@ -46,7 +43,7 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 	shipment, err := h.service.TrackShipment(ctx, trackingID)
 	if err != nil {
 		span.RecordError(err)
-		zapLogger.Error("Failed to track shipment", zap.Error(err))
+		slogx.FromContext(ctx).Error(ctx, "Failed to track shipment", slogx.Err(err))
 
 		switch {
 		case errors.Is(err, logicv1.ErrShipmentNotFound):
@@ -59,7 +56,7 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 		return
 	}
 
-	zapLogger.Info("Shipment tracked", zap.String("tracking_id", trackingID))
+	slogx.FromContext(ctx).Info(ctx, "Shipment tracked")
 	c.JSON(http.StatusOK, shipment)
 }
 
@@ -68,9 +65,6 @@ func (h *Handler) TrackShipment(c *gin.Context) {
 func (h *Handler) EstimateShipping(c *gin.Context) {
 	ctx := c.Request.Context()
 	span := trace.SpanFromContext(ctx)
-
-	zapLogger := httpmw.LoggerFrom(c)
-
 	origin := c.Query("origin")
 	destination := c.Query("destination")
 	weightStr := c.Query("weight")
@@ -97,17 +91,15 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 	estimate, err := h.service.EstimateShipping(ctx, origin, destination, weight)
 	if err != nil {
 		span.RecordError(err)
-		zapLogger.Error("Failed to estimate shipping", zap.Error(err))
+		slogx.FromContext(ctx).Error(ctx, "Failed to estimate shipping", slogx.Err(err))
 		httpx.RespondError(c, http.StatusInternalServerError, httpx.CodeInternal, "Internal server error")
 		return
 	}
 
-	zapLogger.Info("Shipping estimated",
-		zap.String("origin", origin),
-		zap.String("destination", destination),
-		zap.Float64("weight", weight),
-		zap.Float64("cost", estimate.EstimatedCost),
-	)
+	// origin and destination are text the caller typed and the cost is an
+	// amount: all review-class under the field classification, so the record
+	// carries none of them — the span has the request.
+	slogx.FromContext(ctx).Info(ctx, "Shipping estimated")
 	c.JSON(http.StatusOK, estimate)
 }
 
@@ -116,16 +108,13 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 func (h *Handler) GetShipmentByOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 	span := trace.SpanFromContext(ctx)
-
-	zapLogger := httpmw.LoggerFrom(c)
-
 	orderID := c.Param("orderId")
 	span.SetAttributes(attribute.String("order.id", orderID))
 
 	shipment, err := h.service.GetShipmentByOrderID(ctx, orderID)
 	if err != nil {
 		span.RecordError(err)
-		zapLogger.Error("Failed to get shipment by order", zap.Error(err), zap.String("order_id", orderID))
+		slogx.FromContext(ctx).Error(ctx, "Failed to get shipment by order", slogx.Err(err), slog.String("order.id", orderID))
 
 		switch {
 		case errors.Is(err, logicv1.ErrShipmentNotFound):
@@ -136,6 +125,6 @@ func (h *Handler) GetShipmentByOrder(c *gin.Context) {
 		return
 	}
 
-	zapLogger.Info("Shipment retrieved by order", zap.String("order_id", orderID), zap.Int("shipment_id", shipment.ID))
+	slogx.FromContext(ctx).Info(ctx, "Shipment retrieved by order", slog.String("order.id", orderID), slog.Int("shipment.id", shipment.ID))
 	c.JSON(http.StatusOK, shipment)
 }

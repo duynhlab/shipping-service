@@ -26,11 +26,14 @@ var (
 	meter = otel.Meter("shipping-service")
 
 	shipmentCreatedCounter, _ = meter.Int64Counter("shipment.created.total",
-		metric.WithDescription("CreateShipment outcomes (order-fulfillment saga step 2)"))
+		metric.WithDescription("CreateShipment outcomes (order-fulfillment saga step 2)"),
+		metric.WithUnit("{shipment}"))
 	shipmentCancelledCounter, _ = meter.Int64Counter("shipment.cancelled.total",
-		metric.WithDescription("CancelShipment outcomes (saga compensation)"))
+		metric.WithDescription("CancelShipment outcomes (saga compensation)"),
+		metric.WithUnit("{shipment}"))
 	shipmentLookupCounter, _ = meter.Int64Counter("shipment.lookup.total",
-		metric.WithDescription("Shipment read lookups by kind and hit/miss"))
+		metric.WithDescription("Shipment read lookups by kind and hit/miss"),
+		metric.WithUnit("{lookup}"))
 )
 
 // Outcomes for the write paths (bounded).

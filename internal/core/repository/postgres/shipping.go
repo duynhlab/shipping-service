@@ -35,7 +35,7 @@ func (r *ShipmentRepository) GetByTrackingNumber(ctx context.Context, trackingNu
 	shipment, err := r.scanShipment(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("track shipment with number %q: %w", trackingNumber, domain.ErrShipmentNotFound)
+			return nil, fmt.Errorf("track shipment: %w", domain.ErrShipmentNotFound)
 		}
 		return nil, fmt.Errorf("query shipment: %w", err)
 	}
@@ -73,7 +73,7 @@ func (r *ShipmentRepository) GetByOrderID(ctx context.Context, orderID string) (
 func (r *ShipmentRepository) CreateShipment(ctx context.Context, orderID string) (*domain.Shipment, error) {
 	oid, err := strconv.Atoi(orderID)
 	if err != nil {
-		return nil, fmt.Errorf("create shipment: invalid order id %q: %w", orderID, err)
+		return nil, fmt.Errorf("create shipment: invalid order id: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)

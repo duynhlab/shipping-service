@@ -63,8 +63,6 @@ func (s *ShippingService) EstimateShipping(ctx context.Context, origin, destinat
 	_, span := obsx.StartSpan(ctx, tracerScope, "shipping.estimate", trace.WithAttributes(
 		attribute.String("layer", "logic"),
 		attribute.String("api.version", "v1"),
-		attribute.String("origin", origin),
-		attribute.String("destination", destination),
 		attribute.Float64("weight", weight),
 	))
 	defer span.End()

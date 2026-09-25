@@ -82,11 +82,9 @@ func (h *Handler) EstimateShipping(c *gin.Context) {
 		return
 	}
 
-	span.SetAttributes(
-		attribute.String("estimate.origin", origin),
-		attribute.String("estimate.destination", destination),
-		attribute.Float64("estimate.weight", weight),
-	)
+	// The typed origin and destination stay off the span: a region the caller
+	// typed is review-class under the telemetry privacy contract.
+	span.SetAttributes(attribute.Float64("estimate.weight", weight))
 
 	estimate, err := h.service.EstimateShipping(ctx, origin, destination, weight)
 	if err != nil {

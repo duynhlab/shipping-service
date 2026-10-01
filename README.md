@@ -15,7 +15,7 @@ and status, and the rate table the checkout total is built from.
 
 | Area | Technology |
 |------|------------|
-| Runtime | Go 1.26 |
+| Runtime | Go 1.27 |
 | Transports | HTTP (public tracking and estimate) · gRPC (east-west) |
 | Data | PostgreSQL — one table, `shipments` |
 | Platform libraries | `dbx`, `grpcx`, `httpx`, `logger/zapx`, `migratex`, `obsx`, `proto` |

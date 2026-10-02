@@ -273,10 +273,6 @@ func setupServer(cfg *config.Config, otelServiceName string, logger *slogx.Logge
 	// Public: customer-facing tracking + estimation (no auth required)
 	r.GET("/shipping/v1/public/shipments/track", handler.TrackShipment)
 	r.GET("/shipping/v1/public/shipments/estimate", handler.EstimateShipping)
-	// Deprecated aliases — pre-v3 verb paths kept for one release so older SPA
-	// bundles survive the rollout. Remove after the v3 rollout; see homelab ADR-017.
-	r.GET("/shipping/v1/public/track", handler.TrackShipment)
-	r.GET("/shipping/v1/public/estimate", handler.EstimateShipping)
 
 	// Internal: HTTP twin of the gRPC GetShipmentByOrder (order-service calls
 	// gRPC; this path has no live HTTP caller). Not on gateway.

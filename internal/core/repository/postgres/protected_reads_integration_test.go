@@ -14,8 +14,7 @@ import (
 // real schema (RFC-0023 slice A): list paging + status filter and the
 // by-id case view.
 func TestProtectedReads_Integration(t *testing.T) {
-	pool := newTestDB(t)
-	repo := NewShipmentRepository(pool)
+	repo := NewShipmentRepository(newTestDB(t).runtime)
 	ctx := context.Background()
 
 	// Seed through the real write path (idempotent by order id).

@@ -105,6 +105,10 @@ type DatabaseConfig struct {
 	MaxConnections int    // Max connections - from DB_POOL_MAX_CONNECTIONS env (default: 25)
 	PoolMode       string // Pool mode - from DB_POOL_MODE env (optional)
 	PoolerType     string // Pooler type - from DB_POOLER_TYPE env (optional)
+	// MigrationRole is the schema owner the migrate and seed subcommands switch
+	// to with SET ROLE after logging in as the migrator - from
+	// DB_MIGRATION_ROLE env. The serve path never uses it.
+	MigrationRole string
 }
 
 // BuildDSN constructs the PostgreSQL connection string from config. It is the
@@ -175,6 +179,7 @@ func Load() *Config {
 			MaxConnections: getEnvInt("DB_POOL_MAX_CONNECTIONS", 25),
 			PoolMode:       getEnv("DB_POOL_MODE", ""),
 			PoolerType:     getEnv("DB_POOLER_TYPE", ""),
+			MigrationRole:  getEnv("DB_MIGRATION_ROLE", ""),
 		},
 		ShutdownTimeout:     getEnvDurationSeconds("SHUTDOWN_TIMEOUT", 10),
 		ReadinessDrainDelay: getEnvDurationSecondsWithMax("READINESS_DRAIN_DELAY", 5, 30),

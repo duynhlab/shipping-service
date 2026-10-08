@@ -37,12 +37,19 @@ is one place to change when they change.
 Prefer the homelab **local-stack** — a quote is only meaningful with a checkout
 in front of it, and a shipment with an order behind it.
 
-Standalone you need PostgreSQL reachable through the `DB_*` variables:
+Standalone you need PostgreSQL reachable through the `DB_*` variables and three
+roles: `shipping_owner` (owns the schema, cannot log in), `shipping_migrator`
+(logs in, may only `SET ROLE shipping_owner`) and `shipping_runtime` (serves
+traffic, CRUD only). `migrate` and `seed` log in as the migrator and need
+`DB_MIGRATION_ROLE=shipping_owner`; they refuse to run without it, and they must
+reach PostgreSQL directly, not through a transaction pooler. The app logs in as
+`shipping_runtime`. `shipping_owner` must own the `shipping` database: on
+PostgreSQL 15+ that is what lets it create objects in the `public` schema.
 
 ```bash
-go run cmd/main.go migrate   # apply schema migrations
-go run cmd/main.go seed      # demo shipments — development only, refuses production
-go run cmd/main.go           # serve HTTP :8080 + gRPC :9090
+DB_USER=shipping_migrator DB_MIGRATION_ROLE=shipping_owner go run cmd/main.go migrate
+DB_USER=shipping_migrator DB_MIGRATION_ROLE=shipping_owner go run cmd/main.go seed   # development only
+DB_USER=shipping_runtime go run cmd/main.go   # serve HTTP :8080 + gRPC :9090
 ```
 
 ## Verify

@@ -117,9 +117,25 @@ Rules an implementer can violate at the keyboard.
 - **Pooler-safe database settings live in `pkg/dbx`, not here.** Simple protocol
   and disabled statement caches are required by the pooler. The seed path
   re-asserts the execution mode explicitly because it runs multi-statement files.
-  One DSN serves both the app and migrations; pool sizing is applied to the
+  `BuildDSN()` stays the single DSN builder; pool sizing is applied to the
   parsed config, never to the DSN, because the driver migrations use rejects
   `pool_*` parameters.
+- **Two identities, one DSN builder** (homelab RFC-0029). The app logs in as
+  `shipping_runtime`, which has CRUD on `shipments` and owns nothing. `migrate`
+  and `seed` log in as `shipping_migrator` and switch to `shipping_owner` with
+  `SET ROLE` (`DB_MIGRATION_ROLE`; `migratex.WithSetRole` and the seed pool's
+  `AfterConnect`). An empty role fails the run; never add a fallback to the
+  login's own identity, or objects end up owned by the migrator.
+- **A new table needs no GRANT.** `000005_authorization` sets the owner's
+  default privileges, so every table and sequence a later migration creates is
+  usable by `shipping_runtime`. It names `shipping_runtime` on purpose: the
+  platform creates the roles before migrations run, and a missing role must
+  fail. A function the runtime calls directly is the exception: PUBLIC has no
+  EXECUTE by default, so that migration grants EXECUTE explicitly.
+- **The platform owns the roles and the database owner.** `shipping_owner` must
+  own the `shipping` database (on PostgreSQL 15+ that is what gives it CREATE on
+  `public`), and `migrate`/`seed` must connect to the primary directly:
+  `SET ROLE` is session state that a transaction pooler would not keep.
 - **Graceful-shutdown ordering is load-bearing:** flag not-ready → readiness drain
   delay → HTTP shutdown → gRPC `GracefulStop` → pool close → OTel shutdown last,
   so pending spans, metrics and logs still flush.
